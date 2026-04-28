@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 LZ4 Decompress
+
+Lifecycle: LZ4F_createDecompressionContext (in constructor) -> LZ4F_decompress() in a loop driven by srcSize/dstSize hints ->
+LZ4F_freeDecompressionContext (in free callback). LZ4F_decompress returns 0 when a frame ends; that is captured in frameDone so
+that a NULL compressed buffer (caller signalling EOF) raises FormatError if it arrives mid-frame. raw is accepted but ignored
+here because the lz4 frame format does not require advance knowledge of whether content checksums were used on encode -- the
+decoder handles both.
 ***********************************************************************************************************************************/
 #include <build.h>
 

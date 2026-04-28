@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Write Interface Internal
+
+Backend hooks for IoWrite drivers (fdWrite, bufferWrite, storage backends, etc.). Drivers fill in only what they need: write() is
+mandatory, close/fd/open/ready/seek are optional. Unlike IoRead there is no notion of "blocking" here -- ioWrite() always loops
+until the buffer is fully consumed by the driver.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_WRITE_INTERN_H
 #define COMMON_IO_WRITE_INTERN_H

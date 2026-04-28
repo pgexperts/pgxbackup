@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Variant Data Type
+
+Tagged-union scalar that can hold any of the project's basic types (bool, int/uint variants, String, KeyValue, VariantList). Each
+concrete type has its own struct that begins with VARIANT_COMMON so the type tag can be read polymorphically. Used wherever a value
+of an unknown type must be carried — most heavily in JSON parsing, KeyValue maps, and option parsing.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -78,6 +82,8 @@ typedef struct VariantVariantList
 
 /***********************************************************************************************************************************
 Variant type names
+
+Indexed by VariantType. Order must match the enum in variant.h.
 ***********************************************************************************************************************************/
 static const char *const variantTypeName[] =
 {
@@ -264,6 +270,8 @@ varBoolForce(const Variant *const this)
         case varTypeString:
         {
             // List of false/true boolean string values. Note that false/true values must be equal.
+            // The two halves are intentionally the same length so `idx / (length/2)` reproduces 0 (false) for the first half and
+            // 1 (true) for the second. Adding entries requires keeping both halves balanced.
             static const char *const boolString[] =
             {
                 "n", "f", "0",  "no", FALSE_Z, "off",
@@ -795,7 +803,9 @@ varNewStr(const String *const data)
         FUNCTION_TEST_PARAM(STRING, data);
     FUNCTION_TEST_END();
 
-    // If the variant is larger than the extra allowed with a mem context then allocate the buffer separately
+    // Optimization: when small enough, pack VariantString + StringPub + string bytes into a single allocation so a string Variant
+    // costs one alloc instead of three (Variant, inner String, inner buffer). The branch below builds the inline layout by hand
+    // because strNew*() would always do a separate allocation.
     const size_t allocExtra = sizeof(VariantString) + (data != NULL ? sizeof(StringPub) + strSize(data) + 1 : 0);
 
     if (allocExtra > MEM_CONTEXT_ALLOC_EXTRA_MAX)

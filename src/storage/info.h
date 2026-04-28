@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Storage Info
+
+Common type returned by every backend describing a path/file/link entry. The level enum lets callers ask for only what they need
+so cheaper backends (object stores, listing dir entries) can skip the round trip needed to populate detail fields like uid/gid.
+The numeric values of StorageType are wire-format for the remote protocol and must not be reordered.
 ***********************************************************************************************************************************/
 #ifndef STORAGE_INFO_H
 #define STORAGE_INFO_H

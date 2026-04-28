@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Buffer Filter
+
+Pass-through filter that mediates between input and output buffers of different sizes. Indispensable as the auto-appended last
+stage of a filter chain that ends in an in-only filter (size, hash) -- without it the chain would have nowhere to copy bytes for
+the caller to read. Tracks `inputPos` so that a partial copy can be resumed on the next call via the inputSame protocol.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Local Command
+
+Entry point for a forked local worker. main.c routes here when commandRole == cfgCmdRoleLocal. The worker installs a static
+list of protocol handlers covering every CPU-bound parallel job (archive get/push, backup, restore, verify) and hands control
+to protocolServerProcess(), which loops until an exit message arrives. Locals do not authenticate or take their own command
+locks (the parent process holds them); they only execute the chunks of work the parallel dispatcher hands them.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 HTTP URL
+
+Parses a URL string into protocol/host/port/path components. The regex below is a coarse syntax filter (the real validation is in
+the field-extraction code further down); it is not a full URI grammar. IPv6 hosts are accepted in [bracketed] form so that the
+embedded colons in the address don't collide with the host:port separator — this is the same convention RFC 3986 requires.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -109,7 +113,8 @@ httpUrlNewParse(const String *const url, const HttpUrlNewParseParam param)
             const String *host = strLstGet(splitUrl, 0);
             const String *port = NULL;
 
-            // If an IPv6 address
+            // If an IPv6 address. Brackets are stripped here so host string passed to getaddrinfo() / SNI / certificate
+            // verification is the bare address; the regex above guarantees the closing bracket exists.
             if (strBeginsWithZ(host, "["))
             {
                 // Split closing bracket
@@ -119,7 +124,7 @@ httpUrlNewParse(const String *const url, const HttpUrlNewParseParam param)
                 // Remove opening bracket
                 host = strSub(strLstGet(splitHost, 0), 1);
 
-                // Get port if specified
+                // Get port if specified (skip the leading ':' separator)
                 if (strSize(strLstGet(splitHost, 1)) > 0)
                     port = strSub(strLstGet(splitHost, 1), 1);
             }

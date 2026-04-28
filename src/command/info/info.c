@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Info Command
+
+Renders backup and archive state for one or all stanzas, in either text or JSON. Reads backup.info, archive.info, and (for
+running backups) the live backup lock file to surface percent-complete; per-repo information is merged into a single output
+so the user sees a unified history even when multiple repos are configured. No locks are acquired -- info is read-only and
+must remain runnable while backups are in progress.
 ***********************************************************************************************************************************/
 #include <build.h>
 

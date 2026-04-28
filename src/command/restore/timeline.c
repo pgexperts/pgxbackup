@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Timeline Management
+
+Pre-restore validation that mirrors PostgreSQL's readTimeLineHistory()/tliOfPointInHistory() but is simplified to the question
+"can the requested target timeline reach the start LSN of this backup?". If the answer is no we fail here with a clear error
+rather than letting PostgreSQL abort recovery far into the file copy.
+
+Default target: PostgreSQL <= 11 follows the current timeline by default; >= 12 follows latest. Recovery type "immediate" forces
+"current" because no timeline switch is needed -- but we still call here so that if "latest" was explicitly requested we can warn
+about the gap rather than silently fail at recovery time.
 ***********************************************************************************************************************************/
 #include <build.h>
 

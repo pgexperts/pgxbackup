@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Fork Handler
+
+forkSafe() is fork(2) with an error throw on failure. forkDetach() performs a textbook double-fork detach with std-stream close
+and chdir to /, used by async archive-push to spawn an independent worker that survives the original invocation.
 ***********************************************************************************************************************************/
 #ifndef COMMON_FORK_H
 #define COMMON_FORK_H

@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Io Client Interface
+
+Thin polymorphic wrapper. The struct holds only a driver pointer and an interface vtable; all behavior is delegated to the driver.
+Constructor asserts every required vtable slot so a misconfigured driver fails fast at construction rather than at first use.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,23 @@
 /***********************************************************************************************************************************
 Backup Command
+
+The cmdBackup() flow at the bottom of this file is the canonical lifecycle:
+
+  1. Acquire the backup command lock (in lockStopTest() / cmdLock callers above this) and load backup.info.
+  2. backupInit()        - connect to primary (and standby if requested), validate pg_control vs the stanza.
+  3. backupBuildIncrPrior() / backupBuildIncr() - if diff/incr, find the prior manifest and reconcile options.
+  4. backupStart()       - call pg_backup_start() (or its version-appropriate equivalent), capture start LSN/WAL.
+  5. manifestNewBuild()  - walk PGDATA, populate the manifest with size/timestamp/SHA1 placeholders.
+  6. backupResume()      - if a previous attempt left a backup.manifest.copy, reuse the bytes already in the repo where they pass
+                           validation; this is the only mechanism that lets a failed backup be restarted without redoing all I/O.
+  7. backupProcess()     - parallel file copy via the protocol layer; emits manifest updates as jobs complete.
+  8. backupStop()        - call pg_backup_stop(), capture stop LSN, store backup_label and tablespace_map in the repo.
+  9. backupArchiveCheckCopy() - confirm WAL [start,stop] is archived (and copy it into the backup if archive-copy is set).
+ 10. backupComplete()    - validate, save final manifest, copy compressed manifest into history, update backup.info, refresh
+                           archive.info timestamps so storage lifecycle policies do not delete it early.
+
+The PostgreSQL backup lock is held from step 4 to step 8 (effectively for the duration of the file copy phase). If the process
+dies in that window, PostgreSQL itself releases the backup mode on connection close. Resume on the next attempt picks up at step 6.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -279,6 +297,13 @@ backupInit(const InfoBackup *const infoBackup)
 
 /**********************************************************************************************************************************
 Build block incremental maps
+
+Three lookups feed the per-file block-incremental decision: (a) sizeMap maps file size to block size — bigger files get bigger
+blocks because the block map itself has to fit reasonably; (b) ageMap dampens block size for files that have not changed in a
+while (an old, large file with a 4x multiplier effectively doubles the block size, reducing the per-file map cost on a backup that
+will mostly skip it); (c) checksumSizeMap chooses the checksum width to use per block. The defaults below were chosen so the block
+map of a worst-case file remains comparable in size to a single block of that file, keeping the map-lookup overhead at restore
+small relative to the data fetch.
 ***********************************************************************************************************************************/
 // Size map. Block size is increased when the block map would be larger than a single block. The break can be calculated with this
 // formula: [block size in KiB] / (1024 / [block size in KiB] * [checksum size]) * 1073741824.
@@ -696,6 +721,13 @@ backupBuildIncr(
 
 /***********************************************************************************************************************************
 Check for a backup that can be resumed and merge into the manifest if found
+
+A backup is resumable only if it has backup.manifest.copy (a checkpointed copy saved every manifestSaveSize bytes during the prior
+run) but NO backup.manifest (which would mean the backup actually completed). Resume reuses the repo-side bytes for any file whose
+size, timestamp, and recorded checksums in the resume-manifest still match the new manifest's idea of the file. Files that fail
+any of these invariants are removed from the repo and recopied. Resume only applies to full backups and requires that pgBackRest
+version, backup type, prior label, and compression all match — anything else is treated as not-resumable and the partial directory
+is removed.
 ***********************************************************************************************************************************/
 // Helper to clean invalid paths/files/links out of the resumable backup path
 static void
@@ -1038,6 +1070,11 @@ backupResume(Manifest *const manifest, const String *const cipherPassBackup)
 
 /***********************************************************************************************************************************
 Start the backup
+
+Issues pg_backup_start() (online) or sanity-checks postmaster.pid (offline). PostgreSQL holds the "backup in progress" state on
+the primary connection from this point until backupStop() is called, which is why backup.c carefully avoids freeing the primary
+db object before pg_backup_stop() has run. When backing up from a standby this also waits for the standby to replay past the
+start LSN so the file copy reads consistent data.
 ***********************************************************************************************************************************/
 typedef struct BackupStartResult
 {
@@ -1527,7 +1564,10 @@ backupJobResult(
                             }
                             else
                             {
-                                // Format the page checksum errors
+                                // Format the page checksum errors. Note: a non-empty error list is recorded in the manifest and
+                                // logged as a WARN, but does NOT fail the backup. This is an intentional policy decision -- the
+                                // goal is early detection rather than aborting a backup on the first bad page, since the backup
+                                // may still be the user's only copy of the data.
                                 CHECK(FormatError, checksumPageErrorList != NULL, "page checksum error list is missing");
                                 CHECK(FormatError, !varLstEmpty(checksumPageErrorList), "page checksum error list is empty");
 
@@ -1616,6 +1656,10 @@ backupJobResult(
 /***********************************************************************************************************************************
 Save a copy of the backup manifest during processing to preserve checksums for a possible resume. Only save the final copy when
 resume is disabled since an incremental copy will not be used in a future backup unless resume is enabled beforehand.
+
+The intermediate manifest copy is written to backup.manifest.copy (NOT backup.manifest) -- the missing-final-manifest-but-present-
+copy state is exactly what backupResumeFind() looks for to decide a backup is resumable. The final rename to backup.manifest in
+backupComplete() is therefore the atomic "this backup is done" marker.
 ***********************************************************************************************************************************/
 static void
 backupManifestSaveCopy(Manifest *const manifest, const String *const cipherPassBackup, const bool final)
@@ -1761,6 +1805,11 @@ backupProcessQueueComparator(const void *const item1, const void *const item2)
 }
 
 // Helper to generate the backup queues
+//
+// One queue per top-level target (PGDATA + each tablespace), plus an extra "queue 0" when backup-from-standby is enabled which is
+// reserved for files that must be read from the primary (pg_control and anything matching the standby exclusion regex). Workers
+// pull from queues in a striped pattern (see backupJobQueueNext) so different targets are worked on in parallel without all
+// workers piling onto the same target's I/O.
 static uint64_t
 backupProcessQueue(const BackupData *const backupData, Manifest *const manifest, BackupJobData *const jobData)
 {
@@ -2314,6 +2363,11 @@ backupProcess(const BackupData *const backupData, Manifest *const manifest, cons
 
 /***********************************************************************************************************************************
 Check and copy WAL segments required to make the backup consistent
+
+After backupStop() the LSN range [start,stop] is fixed. This step waits for every WAL segment in that range to appear in the
+archive (with archive-timeout) and, when archive-copy is enabled, also stages the WAL into the backup itself so the backup is
+self-contained. Confirming WAL availability here is what makes the difference between "PostgreSQL acked the backup" and "the
+backup can actually restore" -- without WAL coverage of [start,stop] PostgreSQL cannot reach a consistent state on recovery.
 ***********************************************************************************************************************************/
 static void
 backupArchiveCheckCopy(const BackupData *const backupData, Manifest *const manifest, const String *const cipherPassBackup)
@@ -2444,6 +2498,12 @@ backupArchiveCheckCopy(const BackupData *const backupData, Manifest *const manif
 
 /***********************************************************************************************************************************
 Save and update all files required to complete the backup
+
+The final "this backup is committed" marker is the rename/copy of backup.manifest.copy -> backup.manifest. After that succeeds the
+backup is visible to every other command (info, restore, expire). Updating backup.info comes after the manifest rename so a crash
+between the two leaves an orphan-but-valid backup directory rather than a backup.info that references a manifest that does not
+exist. archive.info/copy is rewritten to refresh its mtime so storage lifecycle policies (e.g., S3 expiration rules keyed on age)
+do not garbage-collect it on long-quiet stanzas.
 ***********************************************************************************************************************************/
 static void
 backupComplete(InfoBackup *const infoBackup, Manifest *const manifest)

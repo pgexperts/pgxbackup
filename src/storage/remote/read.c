@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Remote Storage Read
+
+Streams file content from the remote worker in fixed-size protocol blocks. Optional LZ4 compression is added on the remote side
+(the worker compresses before sending) and decompressed locally; this is purely a wire-format optimization and is independent
+of any backup-level compression configured by the user. Block reads are pipelined: while we're consuming block N we
+asynchronously request block N+1.
 ***********************************************************************************************************************************/
 #include <build.h>
 

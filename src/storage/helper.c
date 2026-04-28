@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Storage Helper
+
+Singleton accessors for the four kinds of storage that pgBackRest cares about (local, pg, repo, spool), in both read-only and
+writable variants. Choosing between local POSIX and remote-via-protocol happens here based on the resolved pg-host/repo-host
+options. Writable accessors enforce that dry-run mode has been initialized so a buggy code path can't silently mutate the repo.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -189,6 +193,8 @@ storagePgGet(const unsigned int pgIdx, const bool write)
 
     Storage *result;
 
+    // If pg-host is set then this process does not have direct filesystem access to the pg cluster -- spawn (or reuse) a remote
+    // worker over SSH/TLS and proxy storage calls through the protocol layer. Otherwise it's a local POSIX cluster.
     // Use remote storage
     if (!pgIsLocal(pgIdx))
     {
@@ -313,6 +319,9 @@ storageRepoPathExpression(const String *const expression, const String *const pa
         else
             strCat(result, STORAGE_PATH_ARCHIVE_STR);
 
+        // WAL files are sharded by their first 16 hex chars so a single archive directory does not accumulate millions of
+        // sibling entries (which kills POSIX dir scans). When the caller passes a two-component path that looks like a WAL
+        // segment, expand to "<timeline>/<first-16-of-name>/<name>"; otherwise pass the subpath through unchanged.
         // If a subpath should be appended, determine if it is WAL path, else just append the subpath
         if (path != NULL)
         {
@@ -370,6 +379,8 @@ storageRepoGet(const unsigned int repoIdx, const bool write)
     // Use local storage
     else
     {
+        // Driver dispatch: walk the registered helper list (cifs/s3/gcs/azure/sftp, registered by main.c via storageHelperInit)
+        // looking for a match on repo-type. If none matches we fall through to POSIX as the built-in default.
         // Search for the helper
         const StringId type = cfgOptionIdxStrId(cfgOptRepoType, repoIdx);
 

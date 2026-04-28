@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Regular Expression Handler
+
+Thin wrapper over POSIX regex.h (regcomp/regexec); this is NOT PCRE -- features such as lookaround, backreferences with the same
+syntax, and \d/\w shortcuts are not available. Patterns are always compiled with REG_EXTENDED. regExpPrefix() extracts the literal
+fixed prefix of an anchored pattern so callers (notably storage list scans) can narrow a server-side prefix before applying the
+full match.
 ***********************************************************************************************************************************/
 #include <build.h>
 

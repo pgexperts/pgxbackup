@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 S3 Storage Helper
+
+Translates pgBackRest configuration options into a storageS3New() call. Notably handles the EKS web-identity and pod-identity
+flows where credentials come from environment variables that AWS sets in the container (AWS_ROLE_ARN, AWS_WEB_IDENTITY_TOKEN_FILE,
+AWS_CONTAINER_*); the user just sets repo-s3-key-type and we discover the rest automatically.
 ***********************************************************************************************************************************/
 #include <build.h>
 

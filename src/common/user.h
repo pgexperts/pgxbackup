@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 System User/Group Management
+
+Cached accessors for the current process's real uid/gid and resolved names; userInit() must be called once before any of the
+getters return meaningful values. Home-directory lookup is gated on HAVE_LIBSSH2 (only SFTP needs it).
 ***********************************************************************************************************************************/
 #ifndef COMMON_USER_H
 #define COMMON_USER_H

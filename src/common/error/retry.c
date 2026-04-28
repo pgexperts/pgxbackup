@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Error Retry Message
+
+Aggregates errors observed across repeated attempts so that the final report shows the user when each unique failure first
+occurred and how many retries it dominated. The list is keyed on message text (not type) because operationally identical retries
+typically produce identical messages, and collapsing them keeps the surfaced error from drowning the user in repetition.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -92,11 +96,12 @@ errRetryAdd(ErrorRetry *const this, const ErrRetryAddParam param)
         FUNCTION_TEST_PARAM(STRING, param.message);
     FUNCTION_TEST_END();
 
-    // Set defaults
+    // Set defaults. When called with no explicit type/message, errRetryAdd pulls from the active CATCH state via errorType() and
+    // errorMessage() -- so the typical call site is errRetryAddP(retry) from inside a CATCH block.
     const ErrorType *const type = param.type == NULL ? errorType() : param.type;
     const char *const message = param.message == NULL ? errorMessage() : strZ(param.message);
 
-    // Set type on first error
+    // The first error received is preserved as the "headline" of the retry message; subsequent errors are aggregated into the list.
     if (this->pub.type == NULL)
     {
         MEM_CONTEXT_OBJ_BEGIN(this)

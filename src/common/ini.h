@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Ini Handler
+
+Streaming INI parser with two modes: strict (on-disk pgBackRest metadata where values must be valid JSON and '#' is not a
+comment) and loose (config-file flavor with comments and trim). See ini.c header for the strict-mode '=' disambiguation rule.
 ***********************************************************************************************************************************/
 #ifndef COMMON_INI_H
 #define COMMON_INI_H

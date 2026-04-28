@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Stanza Update Command
+
+Records a PostgreSQL major-version upgrade in archive.info and backup.info by prepending a new InfoPg history entry while
+leaving the prior entries (and their associated archives/backups) intact and reachable. Run after pg_upgrade or pg_dump/restore
+of the cluster to a new major version; before this is run, the existing stanza will refuse backups because system id /
+catalog version no longer match the recorded values.
 ***********************************************************************************************************************************/
 #include <build.h>
 

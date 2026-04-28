@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Debug Routines
+
+Helpers used by the FUNCTION_LOG_PARAM_* macros to render values into the stack-trace parameter buffer. None of these routines
+themselves push or pop the stack -- they assume the caller (a FUNCTION_LOG_*_FORMAT macro) has already reserved space via
+stackTraceParamBuffer().
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Stanza Delete Command
+
+Permanently removes all backups, archive WAL, and metadata for a stanza from a single repo. Refuses to run unless the stanza
+is stopped (via cmdStop) and --force is set, since this is unrecoverable. Both lock types are taken so no archive-push or
+backup can be in flight while files are being removed.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -42,7 +46,7 @@ cmdStanzaDelete(void)
                 {
                     THROW_FMT(
                         FileMissingError, "stop file does not exist for stanza '%s'\n"
-                        "HINT: has the pgbackrest stop command been run on this server for this stanza?",
+                        "HINT: has the pgxbackup stop command been run on this server for this stanza?",
                         strZ(cfgOptionDisplay(cfgOptStanza)));
                 }
 
@@ -80,7 +84,7 @@ cmdStanzaDelete(void)
                 storagePathRemoveP(storageRepoWrite(), STORAGE_REPO_BACKUP_STR, .recurse = true);
 
             // Remove the stop file - this will not error if the stop file does not exist. If the stanza directories existed but
-            // nothing was in them, then no pgbackrest commands can be in progress without the info files so a stop is technically
+            // nothing was in them, then no pgxbackup commands can be in progress without the info files so a stop is technically
             // not necessary
             storageRemoveP(storageLocalWrite(), lockStopFileName(cfgOptionStr(cfgOptStanza)));
         }

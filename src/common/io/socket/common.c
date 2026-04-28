@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Socket Common Functions
+
+Centralizes socket option application. sckInit() is called once at startup with values derived from configuration; sckOptionSet() is
+applied to every socket fd, both client connect() targets and server accept() results, BEFORE the fd is used. Putting fds in
+non-blocking mode here is what allows higher layers (sckClient, tlsSession) to honor user-supplied timeouts.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -85,7 +89,8 @@ sckOptionSet(const int fd)
     }
 
     // Automatically close the socket (in the child process) on a successful execve() call. Connections are never shared between
-    // processes so there is no reason to leave them open.
+    // processes so there is no reason to leave them open. Without FD_CLOEXEC, sensitive descriptors (auth tokens in transit on a
+    // TLS connection, remote-protocol streams) could leak across an execve() boundary into a child binary.
 #ifdef F_SETFD
     THROW_ON_SYS_ERROR(fcntl(fd, F_SETFD, FD_CLOEXEC) == -1, ProtocolError, "unable to set FD_CLOEXEC");
 #endif

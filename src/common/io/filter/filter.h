@@ -7,6 +7,10 @@ A filter is created using a constructor implemented by each filter (e.g. ioBuffe
 so the only user facing functions are ioFilterResult() and ioFilterType().
 
 Information on implementing a filter is in filter.internal.h.
+
+Result lifetime: ioFilterResult() returns NULL until ioFilterGroupClose() has been called -- closing is what triggers each filter's
+result() callback. Code that reads results out of band (i.e. directly off an IoFilter rather than via ioFilterGroupResult()) must
+respect that ordering.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_FILTER_FILTER_H
 #define COMMON_IO_FILTER_FILTER_H

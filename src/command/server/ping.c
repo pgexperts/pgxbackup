@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Server Ping Command
+
+Liveness probe for the TLS server. Connects without certificate verification (any CA, any peer name) and issues a single NOOP
+through the protocol layer. A successful round-trip means the server is up and TLS is responsive; the connection is then
+closed. Used by monitoring tools and during testing to confirm the server is reachable without exercising any of the
+auth-protected commands.
 ***********************************************************************************************************************************/
 #include <build.h>
 

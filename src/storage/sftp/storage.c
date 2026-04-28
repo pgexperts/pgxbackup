@@ -1,5 +1,18 @@
 /***********************************************************************************************************************************
 SFTP Storage
+
+Filesystem-like backend over SSH using libssh2. Authentication uses public-key (private key file plus optional passphrase, with
+optional explicit public key). The remote filesystem is used much like POSIX -- atomic writes via tmp+rename, path create/sync,
+recursive remove -- but every operation is non-blocking on the underlying socket, so the inner loops are wrapped in
+storageSftpWaitFd() retry that polls for read/write readiness as libssh2 reports LIBSSH2_ERROR_EAGAIN.
+
+Host-key checking modes (repo-sftp-host-key-check-type, see SFTP_STRICT_HOSTKEY_CHECKING_*):
+  - strict:      key must already be in known_hosts and match; this is the safe default for production.
+  - accept-new:  unknown host is appended to ~/.ssh/known_hosts on first connect (TOFU); a mismatch with an existing entry is
+                 still a fatal error.
+  - fingerprint: caller supplies an expected fingerprint via repo-sftp-host-fingerprint; we just compare against that and skip
+                 known_hosts entirely.
+  - none:        no verification at all -- accepts any key the server presents. Only safe in trusted-network test setups.
 ***********************************************************************************************************************************/
 #include <build.h>
 

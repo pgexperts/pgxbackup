@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 File Descriptor Functions
+
+Helpers around poll() that wait for a file descriptor to become readable or writable within a deadline. Used by fdRead/fdWrite and
+the socket/tls backends to implement the IoRead/IoWrite ready hooks and to bound blocking operations by ioTimeoutMs().
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_FD_H
 #define COMMON_IO_FD_H

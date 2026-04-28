@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Repository Remove Command
+
+Removes paths or files from the configured repo. Recursive by default for paths; --recurse=n forbids removing a non-empty
+path. Provides a low-level escape hatch for repository cleanup that expire/stanza-delete do not cover.
 ***********************************************************************************************************************************/
 #include <build.h>
 

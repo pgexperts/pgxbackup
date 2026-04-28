@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Help Command
+
+Renders pgBackRest's online help. Help text is built from src/build/help/help.xml during code generation into a bzip2-compressed
+data buffer (help.auto.c.inc, included by main.c) so help is self-contained in the binary. cmdHelp decompresses the buffer and
+formats the requested topic to fit a fixed 80-column console. helpRenderText is also used elsewhere for option/value
+documentation snippets.
 ***********************************************************************************************************************************/
 #include <build.h>
 

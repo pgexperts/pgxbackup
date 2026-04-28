@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Common Command Routines
+
+Lifecycle hooks shared by every command: cmdInit() is called before configuration is loaded so total command duration includes
+parse time; cmdBegin/cmdEnd bracket each command for logging; cmdAsyncExec performs a double-fork to detach an async worker so
+the parent process can return immediately. cmdOption() lazily formats the active option set for log/error output, suppressing
+secret values.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -251,7 +256,9 @@ cmdAsyncExec(const char *const command, const StringList *const commandExec)
 
     ASSERT(commandExec != NULL);
 
-    // Fork off the async process
+    // Double-fork pattern: the first fork creates a child the parent waits for; that child detaches (forkDetach() does the
+    // setsid + second fork) so the grandchild is reparented to init and the parent's waitpid below returns immediately. This
+    // is what lets archive-push/archive-get's async worker keep running after PostgreSQL's archive_command returns.
     const pid_t pid = forkSafe();
 
     if (pid == 0)

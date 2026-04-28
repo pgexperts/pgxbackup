@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Archive Info Handler
+
+archive.info is the per-stanza index that tells pgBackRest which WAL archive directories belong to which historical PostgreSQL
+incarnation. It is essentially a small wrapper around an InfoPg history list -- each entry is a (db-id, system-id, version,
+catalog-version) tuple, and the archiveId derived from those values is the on-disk subdirectory name (e.g. "16-1") under
+which WAL segments for that incarnation are stored. Like all info files it is paired with archive.info.copy and protected by
+the format/version/checksum framing in info/info.c.
 ***********************************************************************************************************************************/
 #include <build.h>
 

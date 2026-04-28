@@ -1,7 +1,8 @@
 /***********************************************************************************************************************************
 File Descriptor Io Write
 
-Write to a file descriptor using the IoWrite interface.
+Write to a file descriptor using the IoWrite interface. The driver tolerates partial writes and EAGAIN (non-blocking sockets) by
+looping until every byte is delivered or a fatal error is raised.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_FDWRITE_H
 #define COMMON_IO_FDWRITE_H

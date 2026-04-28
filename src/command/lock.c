@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Command Lock Handler
+
+Wraps common/lock.c with command-aware semantics. The contract: at most one lock is held by a process (cmdLockLocal.held is the
+guard). Stanza commands need both archive and backup locks (lockTypeAll); other commands lock a single type. When --lock is
+explicitly set (typically by a remote process passed the file list from the client) those names are used verbatim; otherwise the
+lock file names are derived from stanza, lock type, and per-repo key. The .returnOnNoLock parameter is forbidden when more than
+one lock is being acquired -- partial-acquisition cleanup would be ambiguous.
 ***********************************************************************************************************************************/
 #include <build.h>
 

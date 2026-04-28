@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Command and Option Parse
+
+Merges three sources of configuration -- in order of decreasing precedence: command-line arguments, environment variables
+(PGBACKREST_*), and one or more INI config files (the main pgxbackup.conf plus any files matching conf.d/<name>.conf). The set of valid options
+per command, their types, defaults, allow-lists, and which command roles they apply to is driven by the auto-generated
+parse.auto.c.inc, which is produced by build-code from src/build/config/config.yaml. Do not edit parse.auto.c.inc by hand --
+regenerate via `test/test.pl --gen-only` after changing the YAML.
+
+The parsed result is a Config struct that is then handed to cfgInit() in config.c to become the live configuration.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -45,9 +53,11 @@ typedef enum
 } ConfigDefaultType;
 
 /***********************************************************************************************************************************
-Standard config file name and old default path and name
+Legacy config file path probed for backward compatibility with upstream pgBackRest installations. This is intentionally NOT derived
+from PROJECT_BIN -- it is a fixed reference to the upstream default so existing /etc/pgbackrest.conf files continue to be read by
+pgxbackup. The new default lives under <configdir>/<PROJECT_BIN>.conf, where configdir is set at build time via meson_options.txt.
 ***********************************************************************************************************************************/
-#define PGBACKREST_CONFIG_ORIG_PATH_FILE                            "/etc/" PROJECT_CONFIG_FILE
+#define PGBACKREST_CONFIG_ORIG_PATH_FILE                            "/etc/pgbackrest.conf"
 STRING_STATIC(PGBACKREST_CONFIG_ORIG_PATH_FILE_STR,                 PGBACKREST_CONFIG_ORIG_PATH_FILE);
 
 /***********************************************************************************************************************************
@@ -1446,7 +1456,7 @@ Rules:
 - config-include-path only is specified. *.conf files in the config-include-path will be loaded and the path is required to exist.
   The default config will be be loaded if it exists.
 - config-include-path and config-path are specified. The *.conf files in the config-include-path will be loaded and the directory
-  passed must exist. The overridden default of the config file path (<config-path>/pgbackrest.conf) will be loaded if exists but is
+  passed must exist. The overridden default of the config file path (<config-path>/pgxbackup.conf) will be loaded if exists but is
   not required.
 - If the config and config-include-path are specified. The config file will be loaded and is expected to exist and *.conf files in
   the config-include-path will be appended and at least one is expected to exist.
@@ -1499,7 +1509,7 @@ cfgFileLoad(
     // NOTE: Passing defaults to enable more complete test coverage
     const String *optConfigDefault,                                 // Current default for --config option
     const String *optConfigIncludePathDefault,                      // Current default for --config-include-path option
-    const String *const origConfigDefault)                          // Original --config option default (/etc/pgbackrest.conf)
+    const String *const origConfigDefault)                          // Original --config option default (/etc/pgxbackup.conf)
 {
     FUNCTION_LOG_BEGIN(logLevelTrace);
         FUNCTION_LOG_PARAM(STORAGE, storage);

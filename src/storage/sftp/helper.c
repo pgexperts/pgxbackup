@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 SFTP Storage Helper
+
+Translates pgBackRest configuration options into a storageSftpNew() call. Wraps the whole thing in `#ifdef HAVE_LIBSSH2` so that
+builds without libssh2 cleanly omit the SFTP driver -- the registration in main.c is similarly conditional, and trying to
+configure repo-type=sftp without library support gives a clear error from config validation rather than a link-time failure.
 ***********************************************************************************************************************************/
 #include <build.h>
 

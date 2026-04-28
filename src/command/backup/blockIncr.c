@@ -1,5 +1,26 @@
 /***********************************************************************************************************************************
 Block Incremental Filter
+
+Streaming filter that splits the input file into fixed-size blocks, hashes each one, and either re-emits a block (if its hash
+differs from the prior backup's map) or records a reference to the prior backup's stored copy (if it matches). Output layout:
+
+    super-block-0 super-block-1 ... super-block-N block-map
+
+A super block is a contiguous run of blocks (typically several MiB) compressed/encrypted together. Per-block compression alone
+would be wasteful for small block sizes, so blocks are batched into super blocks before going through the compress/encrypt
+pipeline. The block map references super blocks by (reference-id, bundle-id, offset, super-block-size, block-no-within-super).
+
+The trailing block map is encrypted (when encryption is on) but never compressed, so the restore side can read it back via
+blockMapNewRead() before fetching any super blocks.
+
+The map gets duplicated in every backup that touches a file (so a restore only ever needs to read the map from the latest backup
+that contains the file) but the super blocks themselves can live in any prior backup, including the current one. References by
+themselves never become unreachable as long as some retained backup still names them in its map.
+
+Hash algorithm note: see blockIncr.h. xxHash 128-bit is computed for every block; the leading checksumSize bytes (5..N) form the
+on-wire / on-disk identifier. The exact xxHash variant (XXH3_128bits via common/crypto/xxhash.c) and the consequences of taking a
+prefix of a 128-bit hash for collision risk are NOT documented in this file or the header beyond a brief mention. A formal
+collision-rate analysis is not present in the source tree.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -121,7 +142,8 @@ blockIncrProcess(THIS_VOID, const Buffer *const input, Buffer *const output)
         {
             MEM_CONTEXT_TEMP_BEGIN()
             {
-                // Get block checksum
+                // Get block checksum. Truncated to checksumSize bytes from the 128-bit xxHash result -- the truncation budget is
+                // chosen by the size map in backup.c so that the block map of the worst-case file fits in roughly one block.
                 const Buffer *const checksum = xxHashOne(this->checksumSize, this->block);
 
                 // Does the block exist in the input map?
@@ -129,7 +151,9 @@ blockIncrProcess(THIS_VOID, const Buffer *const input, Buffer *const output)
                     this->blockMapPrior != NULL && this->blockNo < blockMapSize(this->blockMapPrior) ?
                         blockMapGet(this->blockMapPrior, this->blockNo) : NULL;
 
-                // If the block is new or has changed then write it
+                // If the block is new or has changed then write it. The whole-file SHA1 (computed by an outer filter) is the
+                // backstop against the rare case where two different blocks share a truncated xxHash prefix: a missed change is
+                // caught at the file level and surfaced as a backup failure.
                 if (blockMapItemIn == NULL || memcmp(blockMapItemIn->checksum, bufPtrConst(checksum), this->checksumSize) != 0)
                 {
                     // Begin the super block

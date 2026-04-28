@@ -1,5 +1,18 @@
 /***********************************************************************************************************************************
 Page Checksum Filter
+
+Streaming filter that walks a relation file in page-sized chunks and validates each page's checksum against pgPageChecksum().
+Three observations the inline code makes precise:
+
+  - Misalignment: a partial page is acceptable only at the END of the file (torn append from a concurrent insert). Two
+    misaligned chunks in a row mean the file is structurally broken -- the filter throws AssertError.
+  - All-zero pages: skipped because PostgreSQL writes them when extending a relation before any data lands. Detection is by
+    pd_upper==0 (header-check mode) or pd_checksum==0 (header-check-off, encrypted-page case).
+  - Hot-page race: if a checksum mismatches, the filter rereads the page from disk. If the contents changed, PostgreSQL is
+    actively rewriting it, so WAL replay during recovery will fix it -- the page is treated as valid. This bounds the false-
+    positive rate without infinite retry on a genuinely bad page.
+
+Errors are recorded into a Pack but the backup is NOT failed. See the policy comment in command/backup/backup.c backupJobResult().
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -14,6 +14,10 @@ to fill the output buffer as much as possible, i.e., if the output buffer is not
 false. An example is the IoBuffer filter which buffers data between unequally sized input/output buffers.
 
 Each filter has a type that allows it to be identified in the filter list.
+
+Asserts in ioFilterNew() encode the contract: exactly one of in/inOut must be set; if in is set the filter must produce a result
+and must not implement done/inputSame. The flushing protocol is universal: a NULL input passed to processIn/processInOut means
+"end of stream"; subsequent non-NULL inputs are forbidden.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_FILTER_FILTER_INTERN_H
 #define COMMON_IO_FILTER_FILTER_INTERN_H

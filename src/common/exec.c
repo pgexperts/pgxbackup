@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Execute Process
+
+Spawns a child process and exposes three pipes -- stdin, stdout, stderr from the parent's perspective -- as IoRead/IoWrite
+interfaces. Used by the protocol layer to talk to local and remote workers (the latter via ssh). The execOpen() flow is fork(),
+dup2() the pipe ends onto stdin/stdout/stderr in the child, close the no-longer-needed pipe ends in both processes, then execvp().
+On any read/write error, execCheck() reaps the child via waitpid(WNOHANG) so the original IO error is not masked by a more
+generic "broken pipe" surface.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -326,7 +332,10 @@ execOpen(Exec *const this)
     ASSERT(this != NULL);
 
     // Create pipes to communicate with the subprocess. The names of the pipes are from the perspective of the parent process since
-    // the child process will use them only briefly before exec'ing.
+    // the child process will use them only briefly before exec'ing. After fork(): in the child we dup2() one end of each pipe
+    // onto stdin/stdout/stderr and close the other; in the parent we close the ends the child uses. After successful exec, only
+    // four fds related to this exec remain open in either process: the parent's three retained pipe ends plus the child's
+    // freshly-installed stdin/stdout/stderr. PIPE_DUP2 takes care of not closing the descriptor we just dup'd onto.
     int pipeRead[2];
     int pipeWrite[2];
     int pipeError[2];

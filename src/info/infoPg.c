@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 PostgreSQL Info Handler
+
+The history-of-incarnations component embedded in both archive.info and backup.info. Each entry is an InfoPgData (db-id,
+system-id, catalog-version, version, control-version) capturing the identity of one PostgreSQL cluster instance; an upgrade
+or stanza-upgrade prepends a new entry so the prior cluster's WAL and backups remain reachable by archiveId. infoPgAdd always
+inserts at index 0, making the current data trivially accessible at history[0] while older entries shift down. The serialized
+format depends on type (archive vs backup) -- archive omits catalog-version, which it doesn't need, while backup writes all
+fields.
 ***********************************************************************************************************************************/
 #include <build.h>
 

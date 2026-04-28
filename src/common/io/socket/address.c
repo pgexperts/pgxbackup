@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Address Info
+
+Wraps getaddrinfo() and exposes the resolved addresses as a list. The list is ordered to alternate between IPv6 and IPv4 (see
+addrInfoSort) so that the "happy eyeballs" client (RFC 8305) tries both families promptly. The most recently successful address per
+host is remembered process-wide via addressInfoLocal.prefList and surfaces first on the next lookup.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -67,7 +71,8 @@ addrInfoSort(AddressInfo *const this)
     // Only sort if there is more than one address
     if (lstSize(this->pub.list) > 1)
     {
-        // By default start with IPv6 and first address
+        // By default start with IPv6 and first address. The interleave below ensures we don't waste the connect timeout on a single
+        // family if it is misconfigured (e.g. IPv6 routes broken but IPv4 works).
         int family = AF_INET6;
         unsigned int addrIdx = 0;
 
@@ -177,6 +182,8 @@ addrInfoNew(const String *const host, const unsigned int port)
         MEM_CONTEXT_TEMP_BEGIN()
         {
             // Set hints that narrow the type of address we are looking for -- we'll take ipv4 or ipv6
+            // AI_NUMERICSERV: port is always numeric (we cvt it ourselves below), so skip /etc/services lookup
+            // AI_PASSIVE: the same struct is reused for sckServerNew() bind() addresses; for client connects the flag is benign
             struct addrinfo hints = (struct addrinfo)
             {
                 .ai_family = AF_UNSPEC,

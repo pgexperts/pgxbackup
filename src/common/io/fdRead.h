@@ -1,7 +1,9 @@
 /***********************************************************************************************************************************
 File Descriptor Read
 
-Read from a file descriptor using the IoRead interface.
+Read from a file descriptor using the IoRead interface. Configured as a blocking driver (block=true) -- the read loop in fdRead.c
+keeps calling read(2) until the caller's buffer is full or EOF is reached. Combine via ioReadFilterGroup() for compression,
+checksums, or size counting.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_FDREAD_H
 #define COMMON_IO_FDREAD_H

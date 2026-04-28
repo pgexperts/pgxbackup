@@ -5,6 +5,15 @@ Objects that read from some IO source (file, socket, etc.) are implemented using
 implement IoReadProcess and can optionally implement IoReadOpen, IoReadClose, or IoReadEof. IoReadOpen and IoReadClose can be used
 to allocate/open or deallocate/free resources. If IoReadEof is not implemented then ioReadEof() will always return false. An example
 of an IoRead object is IoBufferRead.
+
+Lifecycle and ordering invariants enforced by debug asserts:
+  1. ioFilterGroupAdd() on the read's filter group -- must happen before ioReadOpen().
+  2. ioReadOpen() -- opens the driver and locks the filter chain.
+  3. ioRead() / ioReadSmall() / ioReadLine() / ioReadVarIntU64() -- any number of times until ioReadEof().
+  4. ioReadClose() -- gathers filter results; required before they are accessible via the filter group.
+
+Bytes flow: driver -> filter[0] -> filter[1] -> ... -> filter[N-1] -> caller's buffer. EOF is two-staged: ioReadEofDriver() goes
+true when the driver has nothing left, then eofAll goes true once every filter has also flushed its buffered output.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_READ_H
 #define COMMON_IO_READ_H
@@ -56,10 +65,13 @@ FN_EXTERN bool ioReadOpen(IoRead *this);
 // Read data from IO and process filters
 FN_EXTERN size_t ioRead(IoRead *this, Buffer *buffer);
 
-// Same as ioRead() but optimized for small reads (intended for making repetitive reads that are smaller than ioBufferSize())
+// Same as ioRead() but optimized for small reads (intended for making repetitive reads that are smaller than ioBufferSize()).
+// Backed by an internal buffer that is lazily allocated on first call so callers that never invoke this path pay no extra memory.
 FN_EXTERN size_t ioReadSmall(IoRead *this, Buffer *buffer);
 
-// Read linefeed-terminated string and optionally error on eof
+// Read linefeed-terminated string and optionally error on eof. The entire line must fit within the IO buffer (default 1 MiB);
+// FileReadError is thrown if a line spans the buffer. allowEof=false also throws FileReadError if EOF is reached mid-line; with
+// allowEof=true the trailing partial line is returned instead.
 FN_EXTERN String *ioReadLineParam(IoRead *this, bool allowEof);
 
 // Read linefeed-terminated string

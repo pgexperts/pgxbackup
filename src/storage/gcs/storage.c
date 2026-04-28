@@ -1,5 +1,14 @@
 /***********************************************************************************************************************************
 GCS Storage
+
+Object-store backend for Google Cloud Storage using the JSON API. Authentication comes from one of three sources:
+  - storageGcsKeyTypeService: read a service-account JSON key, build an RS256-signed JWT, exchange it at the OAuth token URL
+    for a short-lived access token. See storageGcsAuthJwt and storageGcsAuthService.
+  - storageGcsKeyTypeAuto: fetch a token from the GCE metadata server (no signing required when running on GCE).
+  - storageGcsKeyTypeToken: a static long-lived token supplied by the user.
+
+Like S3, GCS has no real directories; uses pageToken pagination and a delimiter-based listing strategy. Multipart uploads use
+GCS resumable upload sessions rather than S3-style explicit parts.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -184,6 +193,8 @@ storageGcsAuthJwt(StorageGcs *const this, const time_t timeBegin)
         FUNCTION_TEST_PARAM(TIME, timeBegin);
     FUNCTION_TEST_END();
 
+    // The header `{"alg":"RS256","typ":"JWT"}` is a fixed string for every GCS service-account JWT, so it is hard-coded
+    // base64url-encoded here rather than recomputed each time. The trailing dot is the JWT segment separator.
     // Static header with dot delimiter
     String *const result = strCatZ(strNew(), "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.");
 

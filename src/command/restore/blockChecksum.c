@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Block Hash List
+
+Streaming filter that consumes a file and emits one xxHash per fixed-size block (concatenated as a flat byte buffer). On the
+restore side the resulting buffer is compared element-wise against a BlockMap to identify which blocks differ. The hashing
+parameters MUST match the producer-side blockIncr (same algorithm, same checksum size, same block boundaries) -- a mismatch would
+cause every block to look "changed" and force a full refetch.
 ***********************************************************************************************************************************/
 #include <build.h>
 

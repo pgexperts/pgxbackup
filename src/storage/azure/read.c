@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Azure Storage Read
+
+Single GET against the blob endpoint. Optional `versionid` query parameter targets a specific blob version when restoring as-of
+a point in time. Range header support lets restore fetch only the parts of a file it actually needs.
 ***********************************************************************************************************************************/
 #include <build.h>
 

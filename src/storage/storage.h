@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Storage Interface
+
+Public-facing API for the storage abstraction. A `Storage *` represents a rooted view of some backing store (POSIX, CIFS, S3, GCS,
+Azure, SFTP, or remote-via-protocol). Every command operates against this abstraction rather than calling backend APIs directly,
+which is what allows the same code path to work across local filesystems, network mounts, object stores, and remote workers.
+
+The vtable that backends must implement lives in storage.intern.h (see `StorageInterface`). Path-style operations (pathCreate,
+pathExists, pathRemove non-recursive, pathSync) are only valid when the backend declares storageFeaturePath -- object stores do
+not, since "directories" there are inferred from object names rather than being first-class entities.
 ***********************************************************************************************************************************/
 #ifndef STORAGE_STORAGE_H
 #define STORAGE_STORAGE_H

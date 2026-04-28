@@ -1,5 +1,21 @@
 /***********************************************************************************************************************************
 Archive Get Command
+
+In async mode this command implements a look-ahead WAL fetcher backed by the spool directory:
+
+  - cmdArchiveGet() (foreground) is invoked by PostgreSQL's restore_command, blocks waiting for the requested segment to appear
+    in the spool, then moves it into the requested destination.
+  - cmdArchiveGetAsync() (worker) is forked once per restore_command storm and pre-fetches a window of upcoming WAL segments
+    starting at the requested one. The window size is bounded by archive-get-queue-max (with a minimum of two segments).
+
+Cache cleanup is the queue invariant: queueNeed() removes anything in the spool that is NOT in the ideal upcoming window so the
+spool cannot grow unbounded if PostgreSQL skips ahead (timeline change, restore_target_lsn) or never asks for staged segments.
+.ok status files are kept for every successful (and missing) fetch so the foreground process knows when to give up. The async
+worker exits as soon as its window is filled or it hits a missing segment -- the next restore_command will respawn it.
+
+Repo selection: archiveGetCheck() iterates ALL configured repos in priority order, building a unified "candidate file" list per
+WAL request. The fetcher tries them in order and breaks on first success; per-repo errors become warnings, not failures, unless
+every repo fails for the same segment.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -535,6 +551,15 @@ archiveGetCheck(const StringList *const archiveRequestList)
 
 /***********************************************************************************************************************************
 Clean the queue and prepare a list of WAL segments that the async process should get
+
+Builds the "ideal" look-ahead window (current segment + N successors) and reconciles it with what is actually in the spool:
+- segments in both: keep them, do not refetch.
+- segments in spool but not in window: delete them (PostgreSQL has moved on, e.g. timeline switch).
+- segments in window but not in spool: emit them as work for the async worker.
+
+.ok files are preserved when their corresponding segment is also present (they may carry warnings the foreground will surface).
+A naked .ok with no segment means "the worker confirmed this segment does not exist" and is left in place so the next foreground
+poll completes immediately.
 ***********************************************************************************************************************************/
 static StringList *
 queueNeed(

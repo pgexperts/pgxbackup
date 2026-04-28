@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Storage Read Interface
+
+Wraps a backend-specific IoRead so that callers always see a single IoRead pipeline regardless of which storage driver is below.
+Owns the retry-on-read-error loop: if the driver opted in via .retry, transient failures cause the file to be closed and reopened
+at the offset of the last successful byte, preserving any user-supplied limit. Object-store backends enable retry (network is
+unreliable); POSIX does not.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -55,6 +60,8 @@ storageReadOpen(THIS_VOID)
     const bool result = this->ioInterface.open(this->driver);
 
     // Now that the file is open disable ignore missing. On retry the file must not be missing so we want a hard error.
+    // (A file disappearing mid-read is real corruption, not the harmless "doesn't exist yet" condition that motivates
+    // ignoreMissing.)
     storageReadDriverInterface(this)->ignoreMissing = false;
 
     FUNCTION_LOG_RETURN(BOOL, result);

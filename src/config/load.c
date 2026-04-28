@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Configuration Load
+
+Top-level entry point invoked from main.c. cfgLoad() drives parse, applies cross-option fixups (cfgLoadUpdateOption), wires up
+logging based on the resolved log-level-* options, and configures sub-systems (TLS, sockets, crypto, IO timeouts, storage
+helpers). cfgLoadStanza/cfgLoadLogFile are reentrant so the backup->expire chain in main.c can re-enter logging with the new
+command's settings.
 ***********************************************************************************************************************************/
 #include <build.h>
 

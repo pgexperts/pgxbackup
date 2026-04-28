@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Stack Trace Handler
+
+Implements the synthetic call stack and parameter buffer described in stackTrace.h. The functionParamBuffer is a single 32 KiB
+slab partitioned across active frames (each frame's data->param points at its slice); this avoids allocating during error
+reporting, which must keep working even if the heap is exhausted.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -101,7 +105,8 @@ stackTracePush(const char *const fileName, const char *const functionName, const
         .tryDepth = errorTryDepth(),
     };
 
-    // Set param pointer
+    // Set param pointer. Each frame's parameter buffer is appended directly after the previous frame's contents (no per-frame
+    // allocation) so the entire stack of formatted parameters lives in functionParamBuffer.
     if (stackTraceLocal.stackSize == 0)
     {
         data->param = stackTraceLocal.functionParamBuffer;
@@ -113,7 +118,8 @@ stackTracePush(const char *const fileName, const char *const functionName, const
 
         data->param = dataPrior->param + dataPrior->paramSize + 1;
 
-        // Log level cannot be lower than the prior function
+        // Inheriting the parent's higher level keeps a function's log calls from going silent just because the function was
+        // declared at a lower default level than the caller wanted to trace.
         if (functionLogLevel < dataPrior->functionLogLevel)
             data->functionLogLevel = dataPrior->functionLogLevel;
         else
@@ -416,6 +422,9 @@ stackTraceToZ(
 }
 
 /**********************************************************************************************************************************/
+// Registered via errorHandlerSet so that on a thrown error any stack frames pushed inside the throwing TRY block are popped
+// before the catch body runs. Without this, those frames would linger on the stack and pollute later traces (and eventually
+// overflow STACK_TRACE_MAX). The frames being unwound have already been left in an indeterminate state by the longjmp.
 FN_EXTERN void
 stackTraceClean(const unsigned int tryDepth, const bool fatal)
 {

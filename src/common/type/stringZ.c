@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Zero-Terminated String Handler
+
+Allocates raw char arrays inside a fresh memory context (so they can be objFree'd individually). Used for places where a plain
+char * is more convenient than a String *, e.g. dynamic format strings used in log messages.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -20,7 +23,8 @@ zNewInternal(const size_t size)
         FUNCTION_TEST_PARAM(SIZE, size);
     FUNCTION_TEST_END();
 
-    // Allocate the string as extra or a separate allocation based on how large it is
+    // Two layouts depending on size: small strings live inline in the mem-context's allocation extra (one allocation total),
+    // larger strings get a separate allocation. Mirrors the strNewFixed strategy in string.c.
     char *result;
 
     OBJ_NEW_BASE_EXTRA_BEGIN(

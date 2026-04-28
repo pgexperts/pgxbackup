@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Buffer Handler
+
+A growable byte buffer with separate "size" (apparent size, what most callers see) and "sizeAlloc" (actual allocation). bufLimitSet()
+allows the buffer to appear smaller than it really is, which is how IO layers cap reads without reallocating.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -249,7 +252,8 @@ bufResize(Buffer *const this, const size_t size)
 
     ASSERT(this != NULL);
 
-    // Only resize if it the new size is different
+    // No-op when the requested allocation already matches. Note this checks sizeAlloc, not size, so a call with size==bufSize() on a
+    // limited buffer can still trigger a real resize.
     if (bufSizeAlloc(this) != size)
     {
         // If new size is zero then free memory if allocated

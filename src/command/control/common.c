@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Common Handler for Control Commands
+
+Stop file machinery shared by start/stop. A stop file (one per stanza, plus an "all" stop file) is checked at the start of
+operations that should not run while the operator has paused them. Tested by lockStopTest(); created/removed by cmdStart and
+cmdStop. The stop file is separate from the per-command lock so it persists across processes and survives a reboot.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Configuration Common
+
+Parsers for the size and time options that accept a unit suffix (e.g. 1.5m, 2gb, 30s). Used by the option-parse layer to
+translate user-supplied strings into the int64_t values that are stored in the config.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 List Handler
+
+Generic dynamic array of fixed-size items. The backing array doubles in size on growth (LIST_INITIAL_SIZE → 2×). Item pointers
+returned by lstGet()/lstAdd() are invalidated on resize, since the array may be relocated.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -141,7 +144,11 @@ lstComparatorZ(const void *const item1, const void *const item2)
 }
 
 /***********************************************************************************************************************************
-General function for a descending comparator that simply switches the parameters on the main comparator (which should be asc)
+General function for a descending comparator that simply switches the parameters on the main comparator (which should be asc).
+
+The comparator API does not pass a context pointer, so the list under sort/search must be parked in this file-scope variable. This
+makes lstSort/lstFind in descending mode non-reentrant — a signal handler or recursive call that touched another list during a desc
+sort would corrupt this pointer.
 ***********************************************************************************************************************************/
 static const List *comparatorDescList = NULL;
 
@@ -292,7 +299,8 @@ lstInsert(List *const this, const unsigned int listIdx, const void *const item)
     ASSERT(listIdx <= lstSize(this));
     ASSERT(item != NULL);
 
-    // If list size = max then allocate more space
+    // The list pointer (this->pub.list) can drift forward of listAlloc when items are removed from index 0 (see lstRemoveIdx). The
+    // grow-or-slide logic below recovers that wasted prefix before doubling the allocation.
     if (lstSize(this) == this->listSizeMax)
     {
         MEM_CONTEXT_BEGIN(lstMemContext(this))
@@ -330,7 +338,7 @@ lstInsert(List *const this, const unsigned int listIdx, const void *const item)
     if (listIdx != lstSize(this))
         memmove(this->pub.list + ((listIdx + 1) * this->pub.itemSize), itemPtr, (lstSize(this) - listIdx) * this->pub.itemSize);
 
-    // Copy item into the list
+    // Insertion always invalidates the sort order — even appending an in-order item, since we don't verify ordering here.
     this->sortOrder = sortOrderNone;
     memcpy(itemPtr, item, this->pub.itemSize);
     this->pub.listSize++;
@@ -353,7 +361,8 @@ lstRemoveIdx(List *const this, const unsigned int listIdx)
     // Decrement the list size
     this->pub.listSize--;
 
-    // If this is the first item then move the list pointer up to avoid moving all the items
+    // O(1) head removal: instead of shifting everything down, just advance pub.list. The wasted bytes between listAlloc and pub.list
+    // are reclaimed on the next grow (see lstInsert).
     if (listIdx == 0)
     {
         this->pub.list += this->pub.itemSize;

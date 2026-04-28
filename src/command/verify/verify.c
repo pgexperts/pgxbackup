@@ -1,7 +1,10 @@
 /***********************************************************************************************************************************
 Verify Command
 
-Verify contents of the repository.
+Verify contents of the repository. Walks every file referenced by archive.info and the per-backup manifests, dispatching
+checksum/size checks across local workers via the parallel executor. Reports each mismatch as a separate result so partial
+corruption is visible. Read-only -- no repo state is mutated, but backup-info inconsistencies (e.g. backups in info but not
+on disk) are surfaced as warnings.
 ***********************************************************************************************************************************/
 #include <build.h>
 

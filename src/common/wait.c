@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Wait Handler
+
+Backoff timer used by retry loops. The sleep schedule grows in a Fibonacci-style sequence (each interval is the sum of the prior
+two) starting at 100ms for waits >= 1s, capped at the time remaining. Beyond the absolute deadline, two extra "retry" iterations
+are still granted so callers whose own work consumed the entire budget still get a chance to observe success once the condition
+clears.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -27,6 +32,7 @@ waitNew(const TimeMSec waitTime)
         FUNCTION_LOG_PARAM(TIMEMSEC, waitTime);
     FUNCTION_LOG_END();
 
+    // Upper bound (~11.5 days in ms) keeps timeMSec arithmetic safely in range and rejects nonsensical inputs early
     ASSERT(waitTime <= 999999000);
 
     OBJ_NEW_BEGIN(Wait, .childQty = MEM_CONTEXT_QTY_MAX)

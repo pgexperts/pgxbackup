@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Verify Protocol Handler
+
+Server-side handler for the "vf-f" protocol command (verify file), registered into the local worker's handler table. Unpacks
+the request parameters (path, offset, limit, compression, expected checksum, size, cipher pass) and delegates to verifyFile()
+in the same module, returning the resulting VerifyResult to the parallel dispatcher.
 ***********************************************************************************************************************************/
 #include <build.h>
 

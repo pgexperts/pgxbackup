@@ -1,5 +1,15 @@
 /***********************************************************************************************************************************
 Info Handler
+
+Common load/save/checksum machinery shared by archive.info, backup.info, and the various .copy duplicates pgBackRest writes
+alongside them. The on-disk format is INI-style with a leading [backrest] section recording backrest-format (an integer that
+drives migration), backrest-version, and a SHA-256 checksum that covers the entire file body in a deterministic JSON
+serialization (the INFO_CHECKSUM_* macros emit the canonical bytes through a hash filter while save is in progress so the
+checksum is computed once, in lockstep with the write).
+
+Two copies of every info file are maintained so a torn write or a crash mid-update can be recovered: infoNewLoad attempts the
+primary file then the .copy, and saving writes a temp file first then atomically renames. A failing checksum on a load is a
+hard error -- there is no auto-repair, since silent corruption of the manifest of backups would be catastrophic.
 ***********************************************************************************************************************************/
 #include <build.h>
 

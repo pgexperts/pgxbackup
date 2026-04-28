@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 CRC-32 Calculation
+
+CRC-32C (Castagnoli polynomial 0x1EDC6F41, reflected) -- this is the variant PostgreSQL uses for pg_control checksums starting
+in PG 9.5. The lookup table is the standard byte-at-a-time table used by PostgreSQL's pg_crc32c_sb8.c when hardware acceleration
+isn't available; we don't need the SSE 4.2 hardware path because pg_control verification is not on the hot path. The seed and
+final-XOR with 0xffffffff match PostgreSQL's COMP_CRC32C / FIN_CRC32C macros so values computed here can be compared bit-for-bit
+against ControlFileData.crc.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Annotate Command
+
+Adds or modifies user-supplied key/value annotation metadata on an existing backup, persisted into backup.info so that
+subsequent info/manifest commands can display the annotations. Useful for tagging backups with ticket numbers, retention
+intent, or operational context. Acquires the backup lock to prevent concurrent backup.info modifications.
 ***********************************************************************************************************************************/
 #include <build.h>
 

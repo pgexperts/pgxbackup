@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Start Command
+
+Removes the stop file for the named stanza (or the global stop file when no stanza is given), allowing pgBackRest commands
+that consult lockStopTest() to proceed. Logs a warning rather than erroring when the stop file is already absent so this is
+safe to script.
 ***********************************************************************************************************************************/
 #include <build.h>
 

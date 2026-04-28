@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Common Functions and Definitions for Backup and Expire Commands
+
+Shared label parsing/formatting and repo-path layout helpers. The label format is the public contract for backup naming
+(YYYYMMDD-HHMMSS{F,F_YYYYMMDD-HHMMSS{D,I}}) and is compared lexicographically by the expire command — preserving this ordering is
+load-bearing.
 ***********************************************************************************************************************************/
 #ifndef COMMAND_BACKUP_COMMON_H
 #define COMMAND_BACKUP_COMMON_H

@@ -3,6 +3,10 @@ Io Session Interface
 
 Provides access to IoRead and IoWrite interfaces for interacting with the session returned by ioClientOpen(). Sessions should always
 be closed when work with them is done but they also contain destructors to do cleanup if there is an error.
+
+A session is a single bidirectional connection. The role enum distinguishes the two ends so drivers (and protocol code on top)
+can branch on which side of a handshake they are. Because drivers are layered (TLS-on-socket), an IoSession from a higher layer
+typically owns the inner IoSession from the layer below; closing the outer session cascades to the inner one.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_SESSION_H
 #define COMMON_IO_SESSION_H

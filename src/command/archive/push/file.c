@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Archive Push File
+
+Worker-side per-segment push. For each repo: look up whether the segment already exists, compare checksums (matching = success
+without re-pushing; mismatch = ArchiveDuplicateError, never overwrite); for repos that need a copy, fan-out write a single source
+read into multiple repo writers so the WAL is read from disk only once. Per-repo write errors are accumulated rather than thrown
+immediately so a one-repo failure does not prevent the segment from reaching the others.
 ***********************************************************************************************************************************/
 #include <build.h>
 

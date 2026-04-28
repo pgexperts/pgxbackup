@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Protocol Parallel Executor
+
+Distributes work across a fixed pool of protocol clients (each backed by a forked local worker, possibly chained through a
+remote). The dispatch model is one-job-at-a-time-per-client: the executor calls the user's callbackFunction for each idle
+client to get a new job, sends it as an async request, then uses select() across all client read fds to wait for any to
+finish. select() on the read end of the pipe is what makes this work without threads -- the kernel signals readability when
+the worker has written its response, so the executor can react in O(1) to whichever client finishes first. When the callback
+returns NULL for a client, that client's work is done and protocolHelperFree shuts it down.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -140,7 +147,8 @@ protocolParallelProcess(ProtocolParallel *const this)
             }
         }
 
-        // If clients are running then wait for one to finish
+        // If clients are running then wait for one to finish. The wait is bounded by this->timeout so callers can spin on
+        // protocolParallelDone() and still drive their own progress reporting / cancellation between iterations.
         if (clientRunningTotal > 0)
         {
             // Initialize timeout struct used for select. Recreate this structure each time since Linux (at least) will modify it.

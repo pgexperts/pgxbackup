@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Archive Get Protocol Handler
+
+Server-side dispatch for archive-get-file. Writes the fetched WAL segment into the spool with a temporary extension; the
+foreground process atomically renames it once the .ok status file has been written, which prevents a partial segment from being
+visible to PostgreSQL.
 ***********************************************************************************************************************************/
 #include <build.h>
 

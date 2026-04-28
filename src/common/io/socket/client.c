@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Socket Client
+
+TCP client that implements the "happy eyeballs" connection strategy (RFC 8305) on top of the address list returned by AddressInfo.
+Sockets are placed in non-blocking mode by sckOptionSet() so that connect()/SSL-handshake timeouts are honored at this layer rather
+than blocking on the kernel. timeoutConnect bounds the entire address-list traversal; timeoutSession is forwarded to the resulting
+session for read/write operations.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -94,7 +99,8 @@ sckClientOpenWait(SckClientOpenData *const openData, const TimeMSec timeout)
     // The connection has started but since we are in non-blocking mode it has not completed yet
     if (openData->errNo == EINPROGRESS || openData->errNo == EINTR)
     {
-        // Wait for write-ready
+        // Wait for write-ready. For non-blocking connect(), POSIX signals completion (success OR error) via writability of the
+        // socket. The actual outcome must then be retrieved with getsockopt(SO_ERROR) below — checking errno here is not enough.
         if (fdReadyWrite(openData->fd, timeout))
         {
             // Check for success or error. If the connection was successful this will set errNo to 0.
@@ -204,6 +210,8 @@ sckClientOpen(THIS_VOID)
                             openData->address->ai_family, openData->address->ai_socktype, openData->address->ai_protocol);
                         THROW_ON_SYS_ERROR(openData->fd == -1, HostConnectError, "unable to create socket");
 
+                        // Apply socket options (TCP_NODELAY, O_NONBLOCK, FD_CLOEXEC, keepalives) BEFORE connect() so the connect()
+                        // call below is non-blocking and will return EINPROGRESS instead of waiting for the kernel timeout.
                         sckOptionSet(openData->fd);
 
                         if (connect(openData->fd, openData->address->ai_addr, openData->address->ai_addrlen) == -1)
@@ -231,7 +239,8 @@ sckClientOpen(THIS_VOID)
                     strTrunc(this->name);
                     strCatZ(this->name, openData->name);
 
-                    // Set preferred address
+                    // Set preferred address. The next lookup for this host will return this address first, biasing future
+                    // connections toward whichever family (v4 vs v6) actually works in this environment.
                     addrInfoPrefer(addrInfo, addrInfoIdx);
 
                     // Clear socket so it will not be freed later

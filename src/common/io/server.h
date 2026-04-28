@@ -3,6 +3,10 @@ Io Server Interface
 
 Create sessions for protocol servers. For example, a TLS server can be created with tlsServerNew() and then new TLS sessions can be
 accepted with ioServerAccept().
+
+IoServer is the listening end of the IoClient/IoServer pair. ioServerAccept() takes an *existing* IoSession (typically the raw
+socket session that just accepted a connection) and wraps/upgrades it -- e.g. the TLS server takes a plain socket session and
+returns a TLS-encrypted session on top of it.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_SERVER_H
 #define COMMON_IO_SERVER_H

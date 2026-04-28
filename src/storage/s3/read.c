@@ -1,6 +1,11 @@
 /***********************************************************************************************************************************
 S3 Storage Read
 
+Single GET request per file, with optional Range header for partial reads (used by restore and verify). The HttpResponse owns
+the underlying socket; the storage read interface forwards reads through it until EOF. Retry is enabled at the wrapper level
+(see read.c) since transient HTTP errors are common; the wrapper closes the response and re-issues with the offset advanced
+past whatever bytes were already delivered.
+
 Based on the documentation at https://cloud.google.com/storage/docs/json_api/v1/objects/get
 ***********************************************************************************************************************************/
 #include <build.h>

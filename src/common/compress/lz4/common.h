@@ -1,5 +1,7 @@
 /***********************************************************************************************************************************
 LZ4 Common
+
+Shared error-translation helper for the lz4 frame-format compress/decompress filters.
 ***********************************************************************************************************************************/
 #ifndef COMMON_COMPRESS_LZ4_COMMON_H
 #define COMMON_COMPRESS_LZ4_COMMON_H

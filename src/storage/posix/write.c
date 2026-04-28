@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Posix Storage File write
+
+Atomic write strategy: open "<name>.pgxbackup.tmp", write, optionally fsync, close, rename to final name, optionally fsync the
+parent directory. Crash before the rename leaves an obviously-named tmp turd that the next backup will overwrite; crash after
+the rename but before the path sync may lose the entry (which is why pg uses path sync for durability of metadata files).
 ***********************************************************************************************************************************/
 #include <build.h>
 

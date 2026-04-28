@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Io Session Interface Internal
+
+Vtable for protocol-specific session drivers. ioRead's ignoreUnexpectedEof flag is here (rather than on the IoRead returned from
+the session) because it is a session-level policy: TLS is required to send a close_notify before EOF, but some peers omit it and
+the caller may want to tolerate that for compatibility.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_SESSION_INTERN_H
 #define COMMON_IO_SESSION_INTERN_H

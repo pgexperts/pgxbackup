@@ -1,5 +1,15 @@
 /***********************************************************************************************************************************
 Azure Storage
+
+Object-store backend for Azure Blob Storage. Three authentication modes:
+  - storageAzureKeyTypeShared: HMAC-SHA256 signature over a canonicalized request string using a base64-encoded shared key. The
+    "string to sign" is a fixed-order list of headers padded with empty lines for absent ones (see storageAzureAuth).
+  - storageAzureKeyTypeSas: caller provides a pre-signed SAS query string; we just merge it onto every request. No additional
+    signing happens here -- expiry/scope/permissions are baked into the SAS at issue time.
+  - storageAzureKeyTypeAuto: managed-identity flow that fetches a bearer token from the Azure IMDS at 169.254.169.254.
+
+URI style can be host-form ({account}.blob.core.windows.net/{container}/{blob}) or path-form (used by Azurite for testing); the
+helper.c picks based on repo-azure-uri-style or sniffs from a non-default host setting.
 ***********************************************************************************************************************************/
 #include <build.h>
 

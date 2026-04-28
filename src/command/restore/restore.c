@@ -1,5 +1,24 @@
 /***********************************************************************************************************************************
 Restore Command
+
+cmdRestore() lifecycle:
+
+  1. Validate path/permissions, pick the backup to restore, load its manifest, and if online verify that the requested target
+     timeline is reachable from the backup's start LSN (timelineVerify()).
+  2. restoreCleanBuild() - decide what already in the data directory can be kept (delta), what must be removed, what links and
+     paths must be created. The data directory is rebuilt-not-emptied: subdirs in the manifest are kept (and recursed into),
+     anything not in the manifest is removed. This is the only place the existing PGDATA contents are touched in bulk.
+  3. restoreProcessQueue() - generate per-target queues sorted largest-first so big files start early.
+  4. Save the manifest into PGDATA itself before any data files are written. This is what makes a partially-restored cluster
+     restartable: if the process dies mid-restore, the next attempt reads the manifest from PGDATA and resumes via delta.
+  5. Parallel file copy via the protocol layer (the included process.c.inc handles per-job result accounting).
+  6. Write recovery settings (postgresql.auto.conf / recovery.signal / standby.signal as version-appropriate).
+  7. Sync every relevant path. ORDER MATTERS HERE: pg_control is renamed last (still has STORAGE_FILE_TEMP_EXT until then) so a
+     crash between data-file restore and pg_control rename leaves a directory PostgreSQL refuses to start. The global path is
+     synced AFTER the rename so the rename itself is durable.
+
+Restore order within a single backup: links and tablespace targets are materialized as part of restoreCleanBuild() so that file
+copies into them succeed; the main cluster files come during the parallel job phase; pg_control is the very last write.
 ***********************************************************************************************************************************/
 #include <build.h>
 

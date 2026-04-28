@@ -1,5 +1,14 @@
 /***********************************************************************************************************************************
 IO Filter Group
+
+The pipeline that wires individual IoFilters together. Each filter has its own input/output buffer pair: filter[i]'s output is
+filter[i+1]'s input. Buffers are sized to ioBufferSize() and allocated lazily in ioFilterGroupOpen(); the very last filter's
+output buffer is *not* allocated here -- it is supplied by the caller of ioFilterGroupProcess() (i.e. the destination buffer for
+the IoRead, or the IoWrite driver's staging buffer).
+
+If the last filter is an in-only filter (one that produces a result but no bytes), an IoBuffer filter is appended automatically so
+there is always a source of output bytes for the caller. This is why ioBufferNew() is described as "added automatically" rather
+than something users add by hand.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -175,14 +184,18 @@ ioFilterGroupOpen(IoFilterGroup *const this)
     MEM_CONTEXT_OBJ_BEGIN(this)
     {
         // If the last filter is not an output filter then add a filter to buffer/copy data. Input filters won't copy to an output
-        // buffer so we need some way to get the data to the output buffer.
+        // buffer so we need some way to get the data to the output buffer. The auto-added IoBuffer is also what gives an empty
+        // filter chain a working pass-through path -- without it ioFilterGroupProcess() would have nowhere to put bytes.
         if (ioFilterGroupSize(this) == 0 ||
             !ioFilterOutput((ioFilterGroupGet(this, ioFilterGroupSize(this) - 1))->filter))
         {
             ioFilterGroupAdd(this, ioBufferNew());
         }
 
-        // Create filter input/output buffers. Input filters do not get an output buffer since they don't produce output.
+        // Create filter input/output buffers. Input filters do not get an output buffer since they don't produce output. Wiring
+        // is done by chaining: each filter's input pointer aliases the previous filter's output buffer (or this->input for the
+        // first filter). The cast on filterData->input drops a const that the type system requires but the wiring naturally
+        // violates -- earlier filters mutate buffers that later filters see as const inputs.
         Buffer **lastOutputBuffer = NULL;
 
         for (unsigned int filterIdx = 0; filterIdx < ioFilterGroupSize(this); filterIdx++)
@@ -248,7 +261,8 @@ ioFilterGroupProcess(IoFilterGroup *const this, const Buffer *const input, Buffe
         this->flushing = true;
 #endif
 
-    // Assign input and output buffers
+    // Assign input and output buffers. The last filter's output is overridden each call to point at whatever buffer the caller
+    // supplied, so the chain doesn't have to memcpy its final output anywhere.
     this->input = input;
     (ioFilterGroupGet(this, ioFilterGroupSize(this) - 1))->output = output;
 
@@ -259,7 +273,9 @@ ioFilterGroupProcess(IoFilterGroup *const this, const Buffer *const input, Buffe
         unsigned int filterIdx = 0;
 
         // Search from the end of the list for a filter that needs the same input. This indicates that the filter was not able to
-        // empty the input buffer on the last call. Maybe it won't this time either -- we can but try.
+        // empty the input buffer on the last call. Maybe it won't this time either -- we can but try. Searching from the end is
+        // important: the *latest* filter holding inputSame is the one whose output buffer just filled, and we need to resume
+        // there, not at the head of the chain (which would feed it duplicate data).
         if (ioFilterGroupInputSame(this))
         {
             this->pub.inputSame = false;
@@ -318,7 +334,8 @@ ioFilterGroupProcess(IoFilterGroup *const this, const Buffer *const input, Buffe
             }
 
             // If the filter is done and has no more output then null the output buffer. Downstream filters have a pointer to this
-            // buffer so their inputs will also change to null and they'll flush.
+            // buffer so their inputs will also change to null and they'll flush. This is how end-of-stream propagates through the
+            // chain -- the alias means setting it to NULL once is observed by every downstream filter without explicit signaling.
             if (filterData->output != NULL && ioFilterDone(filterData->filter) && bufUsed(filterData->output) == 0)
                 filterData->output = NULL;
         }

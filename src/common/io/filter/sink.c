@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Sink Filter
+
+Discards every byte handed to it. Primary use is on remote workers where size/checksum filters need to observe a stream but the
+bytes themselves should never travel back over the protocol; ioReadDrain() also uses it to collapse a streaming read into one
+syscall. The empty inOut handler is intentional -- it leaves the output buffer empty, signaling "no bytes available" to the chain.
 ***********************************************************************************************************************************/
 #include <build.h>
 

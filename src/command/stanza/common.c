@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Stanza Commands Handler
+
+Helpers shared by stanza-create/upgrade/delete: generate a fresh cipher passphrase (48 bytes of entropy -> 64-character
+base64 string) and validate that the live cluster matches what's already configured. pgValidate behaves differently online
+vs offline -- online it talks to the running primary via dbGet/checkDbConfig; offline it just reads pg_control from disk.
 ***********************************************************************************************************************************/
 #include <build.h>
 

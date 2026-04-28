@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Remote Storage File write
+
+Streams file content to the remote worker. As with remote read, optional LZ4 compression is wire-format only -- compress
+locally, decompress on the worker before it hands bytes to its underlying storage driver. Filter group state (checksums,
+encryption, user filters) is sent over with the open call so those filters run on the worker, then the final filter results
+come back with the close response.
 ***********************************************************************************************************************************/
 #include <build.h>
 

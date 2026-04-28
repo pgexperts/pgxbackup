@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Remote Storage
+
+Proxies StorageInterface calls over the protocol layer to a worker process running on the pg-host or repo-host. Each vtable slot
+serializes its arguments into a Pack, sends a PROTOCOL_COMMAND_STORAGE_* request via ProtocolClient, and deserializes the
+response. The worker is on the other end of an SSH or TLS connection (see protocolRemoteGet) and runs an identical pgxbackup
+binary that dispatches the request through storage/remote/protocol.c against its own local POSIX (or other) driver.
+
+Feature flags are not hard-coded -- on construction we ask the remote what it supports via PROTOCOL_COMMAND_STORAGE_FEATURE so
+that this proxy advertises exactly what the underlying remote driver does.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -50,6 +58,9 @@ storageRemoteInfoGet(StorageRemoteInfoData *const data, PackRead *const read, St
     ASSERT(read != NULL);
     ASSERT(info != NULL);
 
+    // Time, mode, and uid/gid are encoded as deltas from the previous entry in the same response. Listing a directory with
+    // millions of files where most entries share owner/mode/mtime gets dramatically smaller this way; each subsequent entry
+    // typically encodes as a one-byte zero rather than a full integer.
     // Read type and time modified
     info->type = pckReadU32P(read);
     info->timeModified = pckReadTimeP(read) + data->timeModifiedLast;

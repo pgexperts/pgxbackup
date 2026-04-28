@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Blob Handler
+
+Bump-allocator-style packing of small allocations into 64KiB blocks. Returned pointers are stable for the lifetime of the Blob
+(the allocator never frees individual entries), so callers must keep the Blob alive as long as any of its pointers are used.
+Allocations larger than BLOB_BLOCK_SIZE bypass the block packing and get a dedicated allocation.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -66,7 +70,8 @@ blbAdd(Blob *const this, const void *const data, const size_t size)
                 memcpy(result, data, size);
                 this->pos += size;
             }
-            // Else allocate a new block
+            // Else allocate a new block. The previous block is not freed — its pointers are still valid and the mem context
+            // owns it. This is the source of the "no individual free" property that callers rely on.
             else
             {
                 this->block = memNew(BLOB_BLOCK_SIZE);

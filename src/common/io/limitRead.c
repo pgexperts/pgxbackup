@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Read Chunked I/O
+
+IoRead driver that proxies a byte-bounded subrange of another IoRead. Implements the bound by setting a temporary limit on the
+caller's buffer (so the inner ioRead() naturally stops at the right place) rather than reading into a private buffer and copying;
+this avoids an extra memcpy and keeps the outer IoRead's filter chain operating on the same underlying bytes.
 ***********************************************************************************************************************************/
 #include <build.h>
 

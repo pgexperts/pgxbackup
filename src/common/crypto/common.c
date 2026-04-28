@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Crypto Common
+
+Shared OpenSSL initialization, error reporting, and CSPRNG access used by the cipher and hash filters. cryptoInit() is idempotent
+and must be called before any other OpenSSL API in this codebase; the cipher and hash constructors invoke it on every call so
+callers do not have to. cryptoRandomBytes() is the single point through which random material (cipher salts, etc.) flows.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -55,6 +59,8 @@ cryptoInit(void)
 
     if (!cryptoInitDone)
     {
+        // Order matters: register the error-string and algorithm tables before OPENSSL_init_ssl so that any errors raised during
+        // SSL config-load have human-readable strings available via ERR_reason_error_string().
         // Load crypto strings and algorithms
         ERR_load_crypto_strings();
         OpenSSL_add_all_algorithms();

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Common Functions and Definitions for Repo Commands
+
+Path normalization shared by repo-get/ls/put/rm. Forbids // in paths (which would have surprising semantics on the various
+storage backends) and turns absolute paths under the configured repo path into relative paths so all four commands operate
+in repo-relative coordinates.
 ***********************************************************************************************************************************/
 #include <build.h>
 

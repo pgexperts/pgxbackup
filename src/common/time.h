@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Time Management
+
+Wraps the host time syscalls (gettimeofday, nanosleep) and provides date/time validation plus an epoch-from-parts converter that
+deliberately avoids mktime() so behavior is independent of the process timezone. TimeMSec (uint64) is the canonical unit for
+duration and elapsed time across the codebase.
 ***********************************************************************************************************************************/
 #ifndef COMMON_TIME_H
 #define COMMON_TIME_H

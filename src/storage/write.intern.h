@@ -8,7 +8,9 @@ Storage Write Interface Internal
 #include "version.h"
 
 /***********************************************************************************************************************************
-Temporary file extension
+Temporary file extension. POSIX/CIFS/SFTP atomic writes work by writing to "<name>.pgxbackup.tmp" and renaming on close; the
+project-name prefix avoids collisions with other tools' temp files in the same directory. Object stores ignore this since their
+upload semantics are atomic at the API level.
 ***********************************************************************************************************************************/
 #define STORAGE_FILE_TEMP_EXT                                       PROJECT_BIN ".tmp"
 

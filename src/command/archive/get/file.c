@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Archive Get File
+
+Fetches one WAL segment from the first repo in the candidate list that has it. Per-repo errors become warnings and the loop tries
+the next candidate; only failure across all candidates raises FileReadError. The destination is written non-atomically with sync
+disabled because PostgreSQL's restore_command will re-request the segment if anything goes wrong before the WAL replayer reads
+it -- avoiding the fsync per segment is a measurable throughput win on busy archives.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Error Handler
+
+Implements the setjmp/longjmp-based try/catch/finally machinery declared in error.h. All error state is kept in a single static
+errorContext (no thread-local storage) -- pgBackRest spawns workers via fork(), not threads, so the global is sufficient. Note the
+deliberate static message buffers below: an out-of-memory error must still produce a readable message, so error reporting cannot
+itself depend on the heap.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -172,6 +177,8 @@ errorTypeExtends(const ErrorType *const child, const ErrorType *const parent)
 {
     const ErrorType *find = child;
 
+    // Walk the parent chain. The root error type is its own parent (find == errorTypeParent(find)) which terminates the loop
+    // even in the absence of a sentinel.
     do
     {
         find = errorTypeParent(find);
@@ -301,6 +308,10 @@ errorInternalJump(void)
 }
 
 /**********************************************************************************************************************************/
+// Called from each CATCH/CATCH_ANY/CATCH_FATAL macro. The TRY_BEGIN macro chains these in an else-if ladder behind a single
+// setjmp(); the first invocation per longjmp transitions errorStateTry -> errorStateCatch and runs the registered cleanup handlers
+// (memContext, stackTrace) so resources allocated inside the try are freed before any catch body executes. For fatal errors the
+// memContext handler intentionally skips destructors to avoid masking the original error -- see CATCH_FATAL() in error.h.
 FN_EXTERN bool
 errorInternalCatch(const ErrorType *const errorTypeCatch, const bool fatalCatch)
 {
@@ -364,6 +375,9 @@ errorInternalTryEnd(void)
 }
 
 /**********************************************************************************************************************************/
+// Final common path for every THROW*. Copies the caller-supplied message and stack trace into the static buffers so that even if
+// the error was triggered by an out-of-memory condition, the message survives long enough to be reported. The function does not
+// return -- it ends with errorInternalPropagate() which longjmps to the nearest TRY frame or exits.
 FN_EXTERN void
 errorInternalThrow(
     const ErrorType *const errorType, const char *const fileName, const char *const functionName, const int fileLine,

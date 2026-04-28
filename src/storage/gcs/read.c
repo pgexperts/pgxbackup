@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 GCS Storage Read
+
+Single GET against the JSON API with `alt=media` to request the object body (rather than its metadata). Optional `generation`
+query parameter targets a specific object version when restoring as-of a point in time. Range header support lets restore
+fetch only the parts of a file it actually needs.
 ***********************************************************************************************************************************/
 #include <build.h>
 

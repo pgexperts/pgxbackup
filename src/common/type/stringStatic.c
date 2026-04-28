@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Static String Handler
+
+Convenience helpers around a fixed-size char buffer. Used for FUNCTION_LOG debug formatting where it is not safe (or efficient) to
+allocate a real String — the buffer is owned by the caller, this code only tracks current write position and silently truncates
+on overflow.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -21,6 +25,8 @@ strStcFmt(StringStatic *const debugLog, const char *const format, ...)
         size_t result = (size_t)vsnprintf(strStcRemains(debugLog), strStcRemainsSize(debugLog), format, argument);
         va_end(argument);
 
+        // vsnprintf returned more than fits — saturate at bufferSize-1 (leaving room for the trailing null) and stop. Truncation
+        // is silent because logging must never fail.
         if (result >= strStcRemainsSize(debugLog))
             debugLog->resultSize = debugLog->bufferSize - 1;
         else

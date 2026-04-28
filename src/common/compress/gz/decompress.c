@@ -2,6 +2,10 @@
 Gz Decompress
 
 Based on the documentation at https://github.com/madler/zlib/blob/master/zlib.h
+
+Lifecycle: inflateInit2 (in constructor, with WANT_GZ added when raw=false to read gzip framing) -> inflate(Z_NO_FLUSH) per input
+chunk until Z_STREAM_END -> inflateEnd in the free callback. NULL `compressed` is treated as premature EOF and raises FormatError.
+raw=true expects a bare deflate stream with no gzip wrapper.
 ***********************************************************************************************************************************/
 #include <build.h>
 

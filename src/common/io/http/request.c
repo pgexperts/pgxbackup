@@ -1,5 +1,14 @@
 /***********************************************************************************************************************************
 HTTP Request
+
+Builds and dispatches an HTTP/1.1 request, optionally asynchronously. httpRequestNew() sends the request and (when the caller does
+not immediately wait) parks the live HttpSession on `this->session` so a subsequent httpRequestResponse() can read the response
+without spending another round trip.
+
+RETRY/IDEMPOTENCY NOTE: httpRequestProcess() retries on ANY caught error and on httpResponseCodeRetry() (5xx, 408, 429). All HTTP
+verbs used in this codebase against blob stores (GET, HEAD, PUT-with-content, DELETE, POST for batch ops) are idempotent or
+designed to be safely re-executed by the receiving service (e.g. AWS PUT object overwrites by full key; DELETE on a missing key
+returns 204). Adding a non-idempotent verb here would make this loop unsafe.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -161,7 +170,11 @@ httpRequestProcess(HttpRequest *const this, const bool waitForResponse, const bo
                     // Send the request
                     if (send)
                     {
-                        // Write the request as a buffer so secrets do not show up in logs
+                        // Write the request as a buffer so secrets do not show up in logs.
+                        // SECURITY NOTE: passing the formatted request through ioWrite-on-a-Buffer keeps Authorization headers
+                        // (and signed query strings) out of the trace logs that ioWrite would otherwise emit if the request were
+                        // streamed line-by-line. httpHeader/httpQuery redaction handles the metadata side; this handles the wire
+                        // side.
                         ioWrite(
                             httpSessionIoWrite(session),
                             BUFSTR(

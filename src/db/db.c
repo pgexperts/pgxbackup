@@ -1,5 +1,14 @@
 /***********************************************************************************************************************************
 Database Client
+
+Higher-level wrapper around either a local PgClient (libpq) or a remote ProtocolClient that proxies queries through a remote
+worker (which itself owns the libpq connection). This indirection is what lets pgBackRest run on a host that has no direct
+network access to the PostgreSQL cluster -- the remote worker on the pg host runs libpq and returns results over the protocol.
+The two backends are exclusive: dbNew() asserts exactly one of (client, remoteClient) is non-NULL.
+
+Every backup query is hard-coded here; there is no general-purpose query interface so we can statically reason about which
+queries are actually issued. dbOpen() is also where pgBackRest enforces its connection invariants: search_path, encoding,
+parallel-worker-disabled (9.6 issue with pg_stop_backup), and reading the small set of pg_settings values we need.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -109,6 +118,8 @@ dbQuery(Db *const this, const PgClientQueryResult resultType, const String *cons
 
     Pack *result;
 
+    // Two paths to the database: send the query as a request packet through the protocol session (the remote worker holds
+    // the libpq connection and runs the query for us), or call libpq directly when the cluster is reachable from this host.
     // Query remotely
     if (this->remoteClient != NULL)
     {
@@ -252,6 +263,8 @@ dbOpen(Db *const this)
 
         // Set search_path to prevent overrides of the functions we expect to call. All queries should also be schema-qualified,
         // but this is an extra level protection.
+        // Order matters: search_path comes before any other query so a malicious schema entry on the search_path can't shadow
+        // pg_catalog.pg_settings during the version check immediately below.
         dbExec(this, STRDEF("set search_path = 'pg_catalog'"));
 
         // Set client encoding to UTF8. This is the only encoding (other than ASCII) that we can safely work with.

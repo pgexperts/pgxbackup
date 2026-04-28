@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 HTTP Client
+
+Owns an IoClient (typically a TLS-wrapped SocketClient) and a pool of reusable HttpSession objects. httpClientOpen() prefers
+returning an idle session from sessionReuseList; only when that pool is empty does it pay the cost of a fresh socket+TLS handshake.
+Sessions are returned to the pool by httpClientReuse() once the request/response cycle completes cleanly (see httpResponseDone).
 ***********************************************************************************************************************************/
 #include <build.h>
 

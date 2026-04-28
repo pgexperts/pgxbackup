@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Server Command
+
+Long-running TLS server that accepts protocol connections from peers and forks a remote worker per connection. Conceptually
+this is an alternative to SSH-based remoting -- each peer connects with mutual TLS, the server hands the connection to
+protocolServer() (which negotiates and authorizes via tls-server-auth), and the forked child runs cmdRemote() on the same
+TLS session. Signal handling is stateful: SIGHUP triggers an in-loop config reload (reconstructing the listening sockets
+with the new options); SIGTERM exits the accept loop and SIGTERMs any still-running children; SIGCHLD reaps exited children
+without blocking.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -150,6 +157,8 @@ cmdServer(const unsigned int argListSize, const char *argList[])
                     // Reset SIGCHLD to default
                     sigaction(SIGCHLD, &(struct sigaction){.sa_handler = SIG_DFL}, NULL);
 
+                    // Restore the standard exit handlers (the server overrides SIGHUP/TERM/CHLD for its accept loop). Children
+                    // need the normal handlers so a SIGTERM during connection processing exits cleanly through exitSafe.
                     // Set standard signal handlers
                     exitInit();
 

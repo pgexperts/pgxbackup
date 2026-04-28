@@ -2,6 +2,10 @@
 Gz Compress
 
 Based on the documentation at https://github.com/madler/zlib/blob/master/zlib.h
+
+Lifecycle: deflateInit2 (in constructor, with WANT_GZ added to windowBits when raw=false to enable gzip framing) ->
+deflate(Z_NO_FLUSH) per input chunk -> deflate(Z_FINISH) once uncompressed==NULL -> Z_STREAM_END marks done -> deflateEnd in the
+free callback. raw=true emits a bare deflate stream (no gzip wrapper); the caller is then responsible for any outer framing.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 ZST Decompress
+
+Lifecycle: ZSTD_createDStream / ZSTD_initDStream (in constructor) -> ZSTD_decompressStream per input chunk; the return value is
+0 exactly when a frame ends, which is recorded in frameDone so that a NULL compressed buffer mid-frame raises FormatError ->
+ZSTD_freeDStream (in free callback). Compiled out when HAVE_LIBZST is not defined.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Storage Iterator
+
+Walks one or more directories returned by the backend's list() vtable entry. Recursion uses a stack of (subpath, list, listIdx)
+frames so the iterator can pause between calls without holding the entire recursive listing in memory at once. Sort order
+controls whether a path is emitted before (asc) or after (desc) its contents -- desc is what `expire` uses so it can remove
+files before removing the now-empty directory.
 ***********************************************************************************************************************************/
 #include <build.h>
 

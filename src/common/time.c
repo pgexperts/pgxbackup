@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Time Management
+
+Implementation notes: epochFromParts derives the Unix epoch from a Gregorian date directly using the formula referenced inline,
+which both keeps the result independent of the process TZ and lets the function be called from contexts where mktime() would not
+be appropriate (e.g. log timestamp formatting that must not mutate global tzset state).
 ***********************************************************************************************************************************/
 #include <build.h>
 

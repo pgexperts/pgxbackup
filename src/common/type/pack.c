@@ -107,6 +107,13 @@ Array and object types:
 /***********************************************************************************************************************************
 Map PackType types to the types that will be written into the pack. This hides the details of the type IDs from the user and allows
 the IDs used in the pack to differ from the IDs the user sees.
+
+CRITICAL ORDERING/VALUE INVARIANTS:
+  - Values 0-14 fit in the four high bits of the tag byte. Values 15+ require a varint type-extension byte after the tag (see
+    pckWriteTag). This wire format is read by every pgBackRest binary that talks to its peer, so changing existing values would
+    break protocol compatibility with other versions.
+  - Position 0 (Unknown) must remain unused on the wire (a tag of 0x00 means "container end").
+  - Adding a type means filling the next free slot, never renumbering existing ones.
 ***********************************************************************************************************************************/
 typedef enum
 {
@@ -225,6 +232,8 @@ typedef struct PackTagStackItem
     unsigned int nullTotal;                                         // Total nulls since last tag written
 } PackTagStackItem;
 
+// The stack always has a synthetic "bottom" entry representing the implicit outermost object — this is what `top` points at when
+// depth is zero. Pure scalar packs (no objects/arrays) use only this bottom entry and never allocate the heap List.
 typedef struct PackTagStack
 {
     List *stack;                                                    // Stack of object/array tags
@@ -411,6 +420,9 @@ Read bytes from the buffer
 IMPORTANT NOTE: To avoid having dynamically created return buffers the current buffer position (this->bufferPos) is stored in the
 object. Therefore this function should not be used as a parameter in other function calls since the value of this->bufferPos will
 change.
+
+The IO mode (this->read != NULL) reads exactly the requested size — partial reads are not handled here, callers loop on bufferUsed
+themselves. See pckReadStr/pckReadBin for the loop pattern.
 ***********************************************************************************************************************************/
 static size_t
 pckReadBuffer(PackRead *const this, const size_t size)
@@ -1388,6 +1400,14 @@ pckWriteU64Internal(PackWrite *const this, const uint64_t value)
 
 /***********************************************************************************************************************************
 Write field tag
+
+The wire layout depends on the type's value-encoding category (see packTypeMapData):
+  - valueMultiBit (integers): one tag bit indicates whether the value fits in a single bit (stored in tag) or requires a
+    follow-up varint. ID delta uses 1 or 2 of the remaining tag bits.
+  - valueSingleBit (bool, str, bin): one tag bit holds the value (0/1, or "non-empty" for str/bin); ID delta uses 2 tag bits.
+  - container (object/array, pack): no value bits; ID delta uses 3 tag bits.
+
+The resulting tag layout matches the read paths in pckReadTagNext() — keep them in sync when modifying.
 ***********************************************************************************************************************************/
 static void
 pckWriteTag(PackWrite *const this, const PackTypeMap typeMap, unsigned int id, uint64_t value)
@@ -1401,7 +1421,8 @@ pckWriteTag(PackWrite *const this, const PackTypeMap typeMap, unsigned int id, u
 
     ASSERT(this != NULL);
 
-    // If id is not specified then add one to previous tag (and include all NULLs)
+    // ID assignment: if id == 0 the caller is using auto-numbering and we must skip past pending NULLs accumulated by
+    // pckWriteNull / pckWriteDefaultNull. nullTotal is reset just below so the next field starts fresh.
     if (id == 0)
     {
         id = this->tagStack.top->idLast + this->tagStack.top->nullTotal + 1;

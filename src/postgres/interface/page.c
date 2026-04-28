@@ -1,7 +1,11 @@
 /***********************************************************************************************************************************
 PostgreSQL Page Checksum
 
-Adapted from PostgreSQL src/include/storage/checksum_impl.h.
+Adapted from PostgreSQL src/include/storage/checksum_impl.h. Used to detect on-disk corruption during backup when checksums
+are enabled on the cluster (--checksum-page). The PARALLEL_SUM=32 fanout matches PostgreSQL's implementation so we get the
+same checksum bytes; pageSize-specific union types exist solely to keep strict-aliasing happy when reinterpreting the page
+buffer as an array of 32-wide uint32 lanes. The pgPageSize8 (default 8KB) case is listed first in the switch so the most
+common code path falls through to the case label without table lookup.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Io Session Interface
+
+Polymorphic wrapper. The {vm_covered} markings on ioSessionPeerNameSet() are because peer-name reporting is exercised only by the
+TLS test path, which runs inside the test container.
 ***********************************************************************************************************************************/
 #include <build.h>
 

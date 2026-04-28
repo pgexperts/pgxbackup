@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Protocol Helper
+
+Factory and registry for ProtocolClient instances backed by either a forked local worker (pipe IO) or a remote worker reached
+over SSH (forking ssh and pipe IO) or TLS (a socket session). Clients are cached by (type, storageType, hostIdx, processId) so
+the same logical "channel" is reused across calls. Repo vs Pg storage and host indexing govern which CFGOPT_*_HOST options
+apply on the remote side -- protocolRemoteParam strips repo options when the remote is a pg host (and vice versa) and rewrites
+indexed options so the spawned process sees its own host as index 0.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -369,6 +375,9 @@ protocolServerAuthorize(const String *authListStr, const String *const stanza)
     FUNCTION_TEST_RETURN(BOOL, result);
 }
 
+// Initialize a ProtocolServer over a freshly accepted TLS connection. Two paths: an authenticated peer sends a CONFIG command
+// with the desired argv (so the server reloads its options for this stanza) and the auth list is checked against
+// tls-server-auth; an unauthenticated peer can only NOOP-and-disconnect (used for liveness probes).
 FN_EXTERN ProtocolServer *
 protocolServer(IoServer *const tlsServer, IoSession *const socketSession)
 {

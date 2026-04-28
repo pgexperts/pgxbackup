@@ -110,6 +110,8 @@ FN_EXTERN String *strDup(const String *this);
 /***********************************************************************************************************************************
 Getters/setters
 ***********************************************************************************************************************************/
+// The size and extra fields together form a 64-bit word: size occupies the low 32 bits, extra the high 32 bits. STRING_SIZE_MAX
+// (string.c) caps both at 1 GiB so neither overflows the 32-bit field.
 typedef struct StringPub
 {
     uint64_t size : 32;                                             // Actual size of the string
@@ -268,7 +270,9 @@ will result in a segfault due to modifying read-only memory.
 
 By convention all string constant identifiers are appended with _STR.
 ***********************************************************************************************************************************/
-// This struct must be kept in sync with StringPub (except for const qualifiers)
+// This struct must be kept in sync with StringPub (except for const qualifiers). STR_SIZE() casts a literal of this type to a
+// const String *, which works because StringPub is the first member of struct String. Mutating these read-only constants via
+// strCat*() etc. will segfault.
 typedef struct StringPubConst
 {
     uint64_t size : 32;                                             // Actual size of the string

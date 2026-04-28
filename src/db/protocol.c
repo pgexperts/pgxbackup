@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Db Protocol Handler
+
+Server-side handlers for the "db" protocol command, registered into the remote worker's handler table via
+PROTOCOL_SERVER_HANDLER_DB_LIST. dbOpenProtocol opens a libpq connection and stashes the PgClient as session data; subsequent
+dbQueryProtocol calls reuse that connection. This is what implements the "remote" half of the cross-process db client: the
+client-side Db object in db.c sends a packed (resultType, query) pair, this handler runs the query under libpq, and writes
+back the packed result.
 ***********************************************************************************************************************************/
 #include <build.h>
 

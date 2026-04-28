@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Assert Routines
+
+Two distinct assertion families: the ASSERT macros (ASSERT, ASSERT_INLINE, ASSERT_MSG) compile to nothing in production (DEBUG undefined) and are
+intended for internal invariants, while CHECK/CHECK_FMT survive into production builds and are reserved for conditions whose
+failure would corrupt state if execution continued. Both ultimately THROW, so they can longjmp out of the caller -- never put
+either inside cleanup code that must always run.
 ***********************************************************************************************************************************/
 #ifndef COMMON_ASSERT_H
 #define COMMON_ASSERT_H

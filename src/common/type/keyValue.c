@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Key Value Handler
+
+Order-preserving map of Variant keys to Variant values. Lookup is linear (no hashing) so this is meant for small maps such as the
+options for a single command. The keyList exposed via kvKeyList() must remain index-aligned with the internal pair list — kvRemove()
+relies on this invariant.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -202,7 +206,8 @@ kvAdd(KeyValue *const this, const Variant *const key, const Variant *const value
         {
             kvPutInternal(this, key, varDup(value));
         }
-        // Else create or add to the variant list
+        // Existing key. The first kvAdd promotes the scalar value into a one-element list, subsequent kvAdds append to the list.
+        // After this branch the value is always a VariantList, even if it has only ever held one element.
         else
         {
             KeyValuePair *const pair = (KeyValuePair *)lstGet(this->list, listIdx);
@@ -351,7 +356,8 @@ kvRemove(KeyValue *const this, const Variant *const key)
         varFree(pair->value);
         lstRemoveIdx(this->list, listIdx);
 
-        // Remove from the key list (index must be the same as the key/value list)
+        // Index alignment between this->list and pub.keyList is the central invariant — the assertion guards against a future
+        // change that mutates one without the other.
         ASSERT(varEq(key, varLstGet(this->pub.keyList, listIdx)));
 
         varFree(varLstGet(this->pub.keyList, listIdx));

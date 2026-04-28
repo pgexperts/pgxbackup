@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Filter Interface
+
+Common machinery for both filter shapes (input-only and input/output). The flushing flag is set when a NULL input arrives and is
+the gate that lets ioFilterDone() report completion -- a filter is never "done" before its caller has signaled end-of-stream, even
+if it has no buffered state, because more input could still legitimately arrive.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -36,7 +40,9 @@ ioFilterNew(const StringId type, void *const driver, Pack *const paramList, cons
     ASSERT(interface.in != NULL || interface.inOut != NULL);
     // But not both of them
     ASSERT(!(interface.in != NULL && interface.inOut != NULL));
-    // If the filter does not produce output then it should produce a result
+    // If the filter does not produce output then it should produce a result. In-only filters cannot meaningfully implement done
+    // or inputSame because they have no output buffer to fill -- their state machine is trivial: keep accepting input until EOF,
+    // then return the result.
     ASSERT(interface.in == NULL || (interface.result != NULL && interface.done == NULL && interface.inputSame == NULL));
 
     OBJ_NEW_BEGIN(IoFilter, .childQty = MEM_CONTEXT_QTY_MAX)
@@ -110,6 +116,9 @@ ioFilterProcessInOut(IoFilter *const this, const Buffer *const input, Buffer *co
 /***********************************************************************************************************************************
 If done is not defined by the filter then check inputSame. If inputSame is true then the filter is not done. Even if the filter is
 done the interface will not report done until the interface is flushing.
+
+The flushing gate matters: a stateless InOut filter that has consumed all of its current input is technically "ready" but the
+caller may still feed it more bytes. Reporting done before flushing would short-circuit the rest of the chain.
 ***********************************************************************************************************************************/
 FN_EXTERN bool
 ioFilterDone(const IoFilter *this)

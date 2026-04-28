@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Repository Put Command
+
+Writes stdin to a file in the configured repo, applying the configured cipher (and compression where applicable) so the
+written object matches what pgBackRest's own commands would produce. Used for ad-hoc tooling and tests; not part of the
+backup data path.
 ***********************************************************************************************************************************/
 #include <build.h>
 

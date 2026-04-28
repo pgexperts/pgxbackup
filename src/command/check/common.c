@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Check Common Handler
+
+Reusable validation helpers shared by check, stanza-create, and stanza-upgrade: confirm the on-disk pg-path matches the
+running cluster's data_directory, confirm archive.info and backup.info agree on the current pg incarnation, and load both
+info files keyed against the cluster's system id and version.
 ***********************************************************************************************************************************/
 #include <build.h>
 

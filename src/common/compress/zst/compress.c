@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 ZST Compress
+
+Lifecycle: ZSTD_createCStream / ZSTD_initCStream (in constructor) -> ZSTD_compressStream per input chunk -> ZSTD_endStream in a
+loop until it returns 0 (driven by the inputSame flag) -> ZSTD_freeCStream (in free callback). The whole compile unit is wrapped
+in HAVE_LIBZST so that builds without libzst link cleanly; helper.c then surfaces the missing-support error path.
 ***********************************************************************************************************************************/
 #include <build.h>
 

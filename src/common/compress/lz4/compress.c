@@ -2,6 +2,16 @@
 LZ4 Compress
 
 Developed against version r131 using the documentation in https://github.com/lz4/lz4/blob/r131/lib/lz4frame.h.
+
+Lifecycle: LZ4F_createCompressionContext (in constructor) -> LZ4F_compressBegin emits the frame header on the first process call
+-> LZ4F_compressUpdate per input chunk -> LZ4F_compressEnd flushes and emits the trailer when uncompressed==NULL ->
+LZ4F_freeCompressionContext (in free callback). raw=true disables the per-frame xxHash content checksum (LZ4F_noContentChecksum)
+to save bytes when the surrounding format provides its own integrity check; the resulting frame is otherwise standard.
+
+Unlike bz2/gz, lz4 cannot be told to write directly into a small output buffer with overflow-back-to-the-caller semantics. The
+internal `buffer` field absorbs whatever lz4 produces and is then drained in chunks via lz4CompressFlush(); inputSame stays true
+while overflow remains. This is why every compress call routes through lz4CompressBuffer to choose between writing directly to
+the caller's buffer (the fast path, when there is enough room) and the internal staging buffer.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -155,6 +165,8 @@ lz4CompressProcess(THIS_VOID, const Buffer *const uncompressed, Buffer *const co
     ASSERT(compressed != NULL);
     ASSERT(!this->flushing || uncompressed == NULL);
 
+    // If overflow from a prior call is still draining, finish that before accepting any new input. inputSame here means the
+    // staging buffer holds bytes that did not fit in the caller's `compressed` buffer last time.
     // Flush overflow output to the compressed buffer
     if (this->inputSame)
     {

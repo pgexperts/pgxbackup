@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Repository List Command
+
+Lists files and paths in the configured repo, with optional regex filtering and JSON output. Like the other repo-* commands
+it operates on the repo-relative path space normalized by repoPathIsValid.
 ***********************************************************************************************************************************/
 #include <build.h>
 

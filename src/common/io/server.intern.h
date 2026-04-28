@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Io Server Interface Internal
+
+Vtable populated by protocol-specific server drivers. accept() takes an existing inner IoSession (from a lower layer such as the
+socket server) and returns a new IoSession wrapping it -- this is what allows TLS to layer on top of a plain socket without the
+caller knowing which transport is which.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_SERVER_INTERN_H
 #define COMMON_IO_SERVER_INTERN_H

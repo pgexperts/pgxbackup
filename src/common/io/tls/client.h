@@ -42,6 +42,10 @@ typedef struct TlsClientNewParam
 #define tlsClientNewP(ioClient, host, timeoutConnect, timeoutSession, verifyPeer, ...)                                             \
     tlsClientNew(ioClient, host, timeoutConnect, timeoutSession, verifyPeer, (TlsClientNewParam){VAR_PARAM_INIT, __VA_ARGS__})
 
+// Construct a TLS client wrapping ioClient. host is used both as the SNI server_name and as the value to match against the peer
+// certificate's SAN/CN when verifyPeer=true. timeoutConnect bounds the handshake; timeoutSession is forwarded to read/write.
+// SECURITY: when verifyPeer=false the constructed context skips the TLS-1.2 minimum-version floor and the configured cipher
+// allow-lists. Only acceptable for trusted-network or test scenarios.
 FN_EXTERN IoClient *tlsClientNew(
     IoClient *ioClient, const String *host, TimeMSec timeoutConnect, TimeMSec timeoutSession, bool verifyPeer,
     TlsClientNewParam param);

@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Archive Get File
+
+Worker-side per-segment fetch. Tries each candidate (repo, archiveId, file) in turn until one succeeds; per-repo failures become
+warnings rather than terminal errors so a misconfigured backup repo does not block reads from a healthy one.
 ***********************************************************************************************************************************/
 #ifndef COMMAND_ARCHIVE_GET_FILE_H
 #define COMMAND_ARCHIVE_GET_FILE_H

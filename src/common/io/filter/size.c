@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Size Filter
+
+In-only filter that totals every byte that passes through it. The position in the chain determines what is being measured: first
+in a read chain reports the on-wire/on-disk size before any transformation; last in a write chain reports the post-transformation
+size. Result is published as a packed uint64 so it can be transported across the protocol layer to a remote worker.
 ***********************************************************************************************************************************/
 #include <build.h>
 

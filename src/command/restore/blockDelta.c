@@ -1,5 +1,17 @@
 /***********************************************************************************************************************************
 Block Restore
+
+Compares a block map (from the latest backup) against the block checksum list of the existing pg-side file and produces:
+  - readList     : reads to issue against the repo, one per (reference, bundle, contiguous-offset-run)
+  - per super block: list of blocks to extract from each super block
+
+Reads are deduplicated and merged across super blocks where their offsets are contiguous to minimize round trips on object stores.
+Within a super block blocks are extracted in order even if only a subset is needed, because super blocks are compressed/encrypted
+as a unit and must be read sequentially. blockDeltaNext() drives the per-super-block iterator and is called once per block to
+extract.
+
+The reference-list ordering is sorted descending purely for log/test stability -- the actual restore is order-independent because
+each block knows its target offset in the pg file.
 ***********************************************************************************************************************************/
 #include <build.h>
 

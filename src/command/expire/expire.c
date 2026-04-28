@@ -1,5 +1,14 @@
 /***********************************************************************************************************************************
 Expire Command
+
+Implements the retention policy. The order across cmdExpire() is fixed and matters: (1) decide which backups violate retention and
+remove them via expireBackup() (which always pulls in the whole dependent chain so an expired full does not leave orphan diff/incr
+backups); (2) save backup.info so a crash leaves a consistent picture of what is supposed to exist; (3) physically remove the
+backup directories on disk; (4) expire WAL ranges that no retained backup needs; (5) expire backup history manifests.
+
+Concurrency note: expire holds no exclusive lock on backup directories that backup itself uses, so the helpers carefully avoid
+removing a "resumable" backup (one with backup.manifest.copy but no backup.manifest) unless it is provably unrelated to whatever
+is happening — see removeExpiredBackup().
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -57,6 +66,8 @@ expireBackup(InfoBackup *const infoBackup, const String *const backupLabel, cons
     {
         // Get the backup and all its dependents sorted from newest to oldest - that way if the process is aborted before all
         // dependencies have been dealt with, the backups remaining should still be usable.
+        // The newest-first ordering is the crash-safety invariant: if we crash mid-loop, what remains is a contiguous chain
+        // anchored at the original full, never a "diff/incr without its full" island.
         const StringList *const backupList = strLstSort(infoBackupDataDependentList(infoBackup, backupLabel), sortOrderDesc);
 
         // Expire each backup in the list
@@ -378,6 +389,13 @@ logExpire(ArchiveExpired *const archiveExpire, const String *const archiveId, co
 
 /***********************************************************************************************************************************
 Process archive retention
+
+Archive retention is intentionally decoupled from backup retention: a backup may be retained for restore even though the WAL needed
+to play it forward past its stop LSN has already been expired. The algorithm here computes the union of WAL ranges still required
+to make each retained backup self-consistent (start..stop) and removes everything outside that union. Major-path-level removal
+(entire timeline/major-LSN directories) is preferred when an entire 16-segment block is unneeded; otherwise individual files are
+walked. History files (.history) are pruned by timeline number, not by backup retention, so cross-timeline restore stays possible
+as long as any backup on a newer timeline still exists.
 ***********************************************************************************************************************************/
 static void
 removeExpiredArchive(const InfoBackup *const infoBackup, const bool timeBasedFullRetention, const unsigned int repoIdx)
@@ -827,7 +845,9 @@ removeExpiredBackup(const InfoBackup *const infoBackup, const String *const adho
         // Initialize the index to the latest backup on disk
         unsigned int backupIdx = 0;
 
-        // Only remove the resumable backup if there is a possibility it is a dependent of the adhoc label being expired
+        // Only remove the resumable backup if there is a possibility it is a dependent of the adhoc label being expired.
+        // Removing a still-resumable backup that another backup process owns would silently destroy in-progress work — see
+        // backupResumeFind() in backup.c for the producer side of this dance.
         if (adhocBackupLabel != NULL && !strLstEmpty(backupList))
         {
             const String *const manifestFileName = strNewFmt(

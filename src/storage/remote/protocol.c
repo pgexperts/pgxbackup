@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Remote Storage Protocol Handler
+
+Server side of the remote storage proxy. Runs inside a worker process spawned by protocolRemoteGet(); receives serialized
+storage requests via the protocol layer and dispatches them to the worker's local storage driver (which is whatever
+storageRepoGet/storagePgGet chose for that host -- typically POSIX, but could be S3 etc. when the host's job is to relay to an
+object store). This is the boundary at which the StorageRemote vtable on the client side becomes a real backend call on the
+server side.
 ***********************************************************************************************************************************/
 #include <build.h>
 

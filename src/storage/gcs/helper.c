@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 GCS Storage Helper
+
+Translates pgBackRest configuration options into a storageGcsNew() call. The repo-gcs-key option holds either a path to a
+service-account JSON file (key-type=service) or a static OAuth token (key-type=token). The `auto` key-type leaves the key NULL
+since GCE metadata-server tokens are fetched on demand inside storage.c.
 ***********************************************************************************************************************************/
 #include <build.h>
 

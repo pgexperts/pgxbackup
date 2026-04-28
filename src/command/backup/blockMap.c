@@ -1,6 +1,11 @@
 /***********************************************************************************************************************************
 Block Incremental Map
 
+Compact, append-only encoding for the per-file block map written at the tail of every block-incremental file. Two design
+constraints drove the encoding: (1) the map is duplicated in every backup that touches the file, so per-block overhead must be
+minimal; (2) the restore side must read the map once and then issue super-block reads in any order, so all sizes and offsets are
+deltas from the prior reference's running state, not absolutes.
+
 The block map is stored as a flag and a series of reference, super block, and block info:
 
 - Varint-128 flag that contains the version and info about the map (e.g. are the super blocks and blocks equal size).

@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Represent Short Strings as Integers
+
+Encodes short identifiers (up to 12 chars in 5-bit mode, 10 in 6-bit mode) into a 64-bit integer. Used pervasively as a substitute
+for enums when the identifier set is open-ended, scattered across modules, or needs to cross process boundaries (config option
+keys, JSON tags, pack tags, etc). The 5-bit mode covers a-z, 2/5/6, and "-"; the 6-bit mode adds digits, uppercase, and "-".
+
+Layout: low bit selects 5- or 6-bit encoding. Sequence numbers (used to disambiguate enum-like sets) are packed into bits 1-3 for
+small values, or bits 4-8 for larger ones (with the low sequence bits set as a marker).
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -238,6 +245,8 @@ strIdFromZN(const char *const buffer, const size_t size, const unsigned int sequ
         FUNCTION_TEST_PARAM(UINT, sequence);
     FUNCTION_TEST_END();
 
+    // Always try 5-bit first since it can hold longer strings (12 vs 10 chars). Fall back to 6-bit only if 5-bit returns 0,
+    // signaling either an out-of-charset character or a string too long for 5-bit but possibly fitting in 6-bit.
     StringId result = strIdBitFromZN(stringIdBit5, buffer, size);
 
     // If 5-bit encoding fails try 6-bit

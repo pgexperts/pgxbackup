@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Remote Command
+
+Entry point for a remote worker -- either spawned via SSH from the main process or accepted by the TLS server. Differs from
+the local worker in three ways: it serves a different handler set (db queries, configOption queries, and the storage proxy);
+it acquires the command lock when started by the main process (process==0) so that operations like backup hold the lock on
+the host that actually owns the storage; and it registers the storage filter handlers used by the storage/remote backend so
+remote storage operations can compose IO filters (compression, encryption, checksum) on the remote side.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -66,6 +72,9 @@ cmdRemote(ProtocolServer *const server)
         // Acquire a lock if this command needs one. We'll use the noop that is always sent from the client right after the
         // handshake to return an error. We can't take a lock earlier than this because we want the error to go back through the
         // protocol layer.
+        // Note the contract with the client: the very first message after the greeting is always a NOOP, so any error raised
+        // here (lock contention, stop file present) is delivered as a structured ProtocolError to the client rather than
+        // appearing as a connection drop.
         volatile bool success = false;
 
         TRY_BEGIN()

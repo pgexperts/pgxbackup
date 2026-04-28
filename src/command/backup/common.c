@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Common Functions and Definitions for Backup and Expire Commands
+
+Implements the public label format and the repo-path layout that backup writes and expire (and info, restore, etc.) read.
+backupRegExp() builds the canonical anchored regex that every command uses to filter "is this a backup directory?" -- the order
+of full vs diff vs incr in this regex IS the lexicographic ordering used to compare label timestamps, so changes here ripple into
+every retention decision.
 ***********************************************************************************************************************************/
 #include <build.h>
 

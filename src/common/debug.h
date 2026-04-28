@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Debug Routines
+
+Defines the FUNCTION_LOG_* and FUNCTION_TEST_* macros that frame nearly every function in the code base. They serve three purposes at
+once: pushing a stack-trace frame so errors can report a meaningful trace, optionally logging the function entry/exit at debug or
+trace level (FUNCTION_LOG_*), and -- in DEBUG builds -- auditing that a function did not leak new mem contexts or allocations into
+its caller's context. FUNCTION_TEST_* macros compile out entirely in production; FUNCTION_LOG_* macros remain but elide the log
+call when no output sink is interested. Pair *_BEGIN with *_RETURN or *_RETURN_VOID -- the begin block declares variables that the
+return macro references, so leaving them mismatched fails to compile.
 ***********************************************************************************************************************************/
 #ifndef COMMON_DEBUG_H
 #define COMMON_DEBUG_H

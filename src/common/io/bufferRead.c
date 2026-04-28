@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Buffer IO Read
+
+IoRead driver over a borrowed Buffer. EOF is set when either all bytes have been delivered to the caller *or* when a single
+ioBufferRead() call empties the source -- detecting that here avoids an extra "drained" round-trip back to the caller.
 ***********************************************************************************************************************************/
 #include <build.h>
 

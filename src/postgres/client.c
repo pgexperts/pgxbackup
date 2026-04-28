@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Postgres Client
+
+Thin libpq wrapper used directly by db.c (when the cluster is local) or by db/protocol.c (when serving queries on behalf of a
+remote main process). pgClientQuery() does not use blocking PQexec because we need to enforce db-timeout: PQsendQuery is paired
+with PQconsumeInput in a fdReadyRead loop so the wait can be interrupted, and PQcancel is issued if the deadline is hit. After
+cancel, PQgetResult is still drained so the connection is left in a usable state for any retry. Type support is intentionally
+minimal -- only the OIDs we actually receive (bool/text/int4/int8/oid/char/name) are decoded; everything else is a FormatError.
 ***********************************************************************************************************************************/
 #include <build.h>
 

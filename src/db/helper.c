@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Database Helper
+
+Probes every configured pg-host index, attempting a connection to each, and returns the resulting (primary, standby) pair.
+Errors connecting to any single host are logged as warnings rather than fatal -- as long as we end up with the host(s) the
+caller required, we proceed. More than one primary is fatal, since pgBackRest cannot decide which to back up. The error
+nesting in dbGetIdx is deliberate: an error in dbOpen must free the partially-constructed db, but the outer try resets db to
+NULL on failure (so we keep iterating other hosts) -- without the inner try we'd lose the pointer needed to free.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Functions
+
+Process-wide IO defaults plus the higher-level helpers ioCopy(), ioReadBuf(), and ioReadDrain(). The drain helper is built on the
+sink filter so the entire stream can be consumed in a single read call -- useful when only the *result* of attached filters (size,
+checksum, etc.) is wanted and the bytes themselves should be discarded.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -111,7 +115,8 @@ ioCopy(IoRead *const source, IoWrite *const destination, const IoCopyParam param
 
         do
         {
-            // If a limit was specified then limit the buffer size on the last iteration
+            // If a limit was specified then limit the buffer size on the last iteration. Lowering the buffer's *limit* (not size)
+            // is what tells ioRead() to stop short -- bufRemains() will return only the bytes still needed to hit the cap.
             if (param.limit != NULL)
             {
                 const uint64_t bufferLimit = varUInt64(param.limit) - copied;
@@ -148,7 +153,9 @@ ioReadDrain(IoRead *const read)
 
     ASSERT(read != NULL);
 
-    // Add a sink filter so we only need one read
+    // Add a sink filter so we only need one read. The sink discards every byte handed to it, but the filters earlier in the chain
+    // (size, checksum, etc.) still observe everything the driver produces. This collapses the read loop to a single one-byte
+    // request -- the driver keeps streaming until EOF because the sink never lets the output buffer fill up.
     ioFilterGroupAdd(ioReadFilterGroup(read), ioSinkNew());
 
     // Check if the IO can be opened

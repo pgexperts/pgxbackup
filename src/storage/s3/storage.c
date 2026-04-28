@@ -1,5 +1,14 @@
 /***********************************************************************************************************************************
 S3 Storage
+
+Object-store backend for S3 and S3-compatible services. Authentication uses AWS Signature Version 4 (storageS3Auth); credentials
+can come from a static access/secret pair (Shared), an EC2 instance role fetched from IMDS (Auto), an EKS pod identity (PodId),
+or a web-identity token federation (WebId). The signing key is regenerated daily and cached on the storage object.
+
+S3 has no concept of paths -- "directories" are inferred from common prefixes -- so the path features are not advertised. List
+operations always use the v2 API (or versions API when targetTime is set), follow continuation tokens for pagination, and rely on
+the regExp prefix from the caller's expression to limit the keys actually returned. Path removes batch up to 1000 keys per
+DELETE request and fall back to single-object deletes for any errors in the batch response.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -599,6 +608,8 @@ storageS3RequestAsync(StorageS3 *const this, const String *const verb, const Str
             this->signingKeyDate = YYYYMMDD_STR;
         }
 
+        // S3 keys may legitimately contain characters that have special meaning in URIs (slashes, plus signs, etc); the SigV4
+        // canonical-request must use the percent-encoded form, so encode here once and reuse for both signing and the request.
         // Encode path
         path = httpUriEncode(path, true);
 
@@ -776,6 +787,8 @@ storageS3ListInternal(
 
                 const XmlNode *const xmlRoot = xmlDocumentRoot(xmlDocumentNewBuf(httpResponseContent(response)));
 
+                // S3 paginates list responses (default 1000 keys per page, configurable up to a few thousand). Pipeline the next
+                // page request asynchronously so its network round trip overlaps with parsing the current page's XML.
                 // If list is truncated then send an async request to get more data
                 if (strEq(xmlNodeContent(xmlNodeChild(xmlRoot, S3_XML_TAG_IS_TRUNCATED_STR, true)), TRUE_STR))
                 {

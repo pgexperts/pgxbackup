@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Azure Storage Helper
+
+Translates pgBackRest configuration options into a storageAzureNew() call. Validates that the shared key is decodable base64
+when key-type=shared (catches mistakes early with a clearer error than waiting for a 403 from the service). The `host`
+config option is legacy and forces path-style URIs when set, for backward compatibility with users targeting Azurite -- newer
+configs should prefer repo-azure-uri-style.
 ***********************************************************************************************************************************/
 #include <build.h>
 

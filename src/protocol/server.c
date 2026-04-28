@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Protocol Server
+
+Server side of the binary protocol: read a request, dispatch to a handler from the supplied list, send back a response (or
+error). The same protocolServerProcess() loop drives every worker -- locals (cmdLocal) and remotes (cmdRemote) install
+different handler tables but share this dispatch core. Sessions (open/process/close/cancel) provide stateful per-command
+context, e.g. an open db connection or an open file write. Session ids are issued by the client; the server merely tracks
+them in a list so that successive process/close requests on the same id can find their state. On per-request errors the
+handler is retried using the configured retryInterval; on fatal errors the session id is zeroed so the client knows the
+error is connection-wide rather than session-scoped, then the error is rethrown so the worker process exits.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -441,7 +449,8 @@ protocolServerProcess(ProtocolServer *const this, const VariantList *const retry
                                     retry = true;
 
                                     // Send keep-alive to remotes. A retry means the request is taking longer than usual so make
-                                    // sure the remote does not timeout.
+                                    // sure the remote does not timeout. Without this, a long retry chain on the local could
+                                    // cause an idle remote on the other side of the SSH/TLS link to disconnect.
                                     protocolKeepAlive();
                                 }
                                 // Else report error to the client
@@ -485,7 +494,8 @@ protocolServerProcess(ProtocolServer *const this, const VariantList *const retry
         }
         CATCH_FATAL()
         {
-            // Zero session id so a fatal error will be handled by the first client that sees it
+            // Zero session id so a fatal error will be handled by the first client that sees it. With sessionId==0 the client
+            // treats the message as connection-fatal rather than session-scoped (see protocolClientResponseInternal).
             this->sessionId = 0;
 
             // Report error to the client

@@ -1,7 +1,8 @@
 /***********************************************************************************************************************************
 Read Limited Data
 
-Read only as much data as specified.
+Wraps an existing IoRead and reports EOF after `limit` bytes have been read, leaving any remaining bytes in the underlying stream
+untouched. Used to consume fixed-length records from a longer stream (e.g. one chunk out of a multi-chunk protocol response).
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_LIMITREAD_H
 #define COMMON_IO_LIMITREAD_H

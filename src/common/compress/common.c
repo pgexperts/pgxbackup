@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Compression Common
+
+Builds the Pack-encoded parameter lists used to serialize compress/decompress filter constructor arguments across the protocol
+boundary. The pack layout (compress: int32 level then bool raw; decompress: bool raw) is a wire format -- helper.c's
+compressFilterPack() reads it back -- so the field count and order must stay in sync with both ends.
 ***********************************************************************************************************************************/
 #include <build.h>
 

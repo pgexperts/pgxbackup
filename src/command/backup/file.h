@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Backup File
+
+Per-file copy logic invoked from the local/remote worker. Implements the four copy outcomes (copy, checksum-match-on-resume,
+no-op-against-prior-backup, skip-because-removed) and orchestrates the optional page-checksum and block-incremental filters used
+during the read.
 ***********************************************************************************************************************************/
 #ifndef COMMAND_BACKUP_FILE_H
 #define COMMAND_BACKUP_FILE_H

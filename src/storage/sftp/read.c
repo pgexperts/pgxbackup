@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 SFTP Storage Read
+
+Reads a remote file via libssh2_sftp_read. Like the rest of the SFTP driver, every libssh2 call is wrapped in a wait-for-fd
+loop because the session socket is non-blocking and libssh2 surfaces LIBSSH2_ERROR_EAGAIN when its internal buffers cannot make
+progress; storageSftpWaitFd() polls until the socket is read- or write-ready (libssh2 may need to send before it can receive).
 ***********************************************************************************************************************************/
 #include <build.h>
 

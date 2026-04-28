@@ -7,6 +7,11 @@ is to make memory management both easier and more performant.
 Memory context management is encapsulated in macros so there is rarely any need to call the functions directly. Memory allocations
 are mostly performed in the constructors of objects and reallocated as needed.
 
+The mem context module is wired into the error handler via errorHandlerSet(): when an error is thrown, every context created (but
+not yet kept) since the enclosing TRY is automatically freed by memContextClean(). This is what makes MEM_CONTEXT_TEMP_BEGIN
+exception-safe without explicit cleanup. Long-lived objects must call memContextKeep() before exiting the New block, otherwise
+they will be discarded on error along with the temp contexts.
+
 See the sections on memory context management and memory allocations below for more details.
 ***********************************************************************************************************************************/
 #ifndef COMMON_MEMCONTEXT_H

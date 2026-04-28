@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Posix Storage
+
+Local-filesystem backend. Implements the full StorageInterface vtable including the optional path/move/sync slots, and is the
+only built-in driver that supports both pg-cluster and repo storage. CIFS shares this implementation but disables pathSync and
+symlinks via storagePosixNewInternal -- SMB-mounted shares do not give honest fsync semantics and may not survive symlink ops.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -468,6 +472,8 @@ storagePosixPathRemove(THIS_VOID, const String *const path, const bool recurse, 
                     {
                         const String *const file = strNewFmt("%s/%s", strZ(path), strZ(storageLstGet(list, listIdx).name));
 
+                        // Optimistic delete: try unlink first and only fall back to stat-then-rmdir on errors that imply
+                        // the entry is a directory. Saves one stat per file -- meaningful on a repo with many files.
                         // Rather than stat the file to discover what type it is, just try to unlink it and see what happens
                         if (unlink(strZ(file)) == -1)                                                               // {vm_covered}
                         {
@@ -627,6 +633,8 @@ storagePosixNewInternal(
         if (!pathSync)
             this->interface.pathSync = NULL;
 
+        // Only true POSIX (not CIFS) advertises hardlink, symlink, pathSync, and detail-level info. CIFS over SMB does not
+        // implement reliable fsync and the project's symlink/hardlink usage is not safe over SMB shares.
         // If this is a posix driver then add link features
         if (type == STORAGE_POSIX_TYPE)
         {

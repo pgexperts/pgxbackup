@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 PostgreSQL Interface
+
+Version-aware front door for parsing pg_control and WAL headers across every supported PostgreSQL major version. The pgInterface
+table -- generated from src/build/postgres/postgres.yaml into interface.auto.c.inc and included below -- holds one entry per
+supported version, each pointing at the version-specific control/wal struct decoders. pgControlFromBuffer first asks each
+interface "is this your control file?" until one matches (or, if pgVersionForce is set, the matching interface is selected
+unconditionally). The CRC validation accommodates forks of PostgreSQL whose pg_control may be larger than upstream by sliding
+the CRC offset forward when forced and the upstream offset doesn't match.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -11,7 +11,8 @@ TLS Common
 /***********************************************************************************************************************************
 Functions
 ***********************************************************************************************************************************/
-// Initialize TLS with allowed ciphers
+// Initialize TLS with allowed ciphers. NULL leaves OpenSSL defaults in place. Cipher allow-lists are applied by tlsContext()
+// only when verifyPeer=true; callers that build a context with verifyPeer=false will not be constrained by these settings.
 FN_EXTERN void tlsInit(const String *tlsCipher12, const String *tlsCipher13);
 
 // Convert an ASN1 string used in certificates to a Buffer

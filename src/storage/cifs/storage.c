@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 CIFS Storage
+
+Thin wrapper over the POSIX backend for SMB-mounted shares. The only differences are pathSync=false (SMB clients fake fsync) and
+symlink=false (Windows-side semantics differ enough that we refuse to use them). All actual file operations go through the
+POSIX driver against the local mount point.
 ***********************************************************************************************************************************/
 #include <build.h>
 

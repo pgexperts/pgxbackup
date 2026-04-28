@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Object Helper Macros and Functions
+
+Out-of-line implementations for the OBJ_* macros and the objMove/objFree primitives declared in object.h. These functions accept NULL pointers
+silently to make freeing partially-constructed or already-freed objects a no-op, simplifying error-path cleanup.
 ***********************************************************************************************************************************/
 #include <build.h>
 

@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Fork Handler
+
+forkSafe() is a thin error-checking wrapper around fork(2). forkDetach() is the classic double-fork daemonize sequence used by
+async archive-push: setsid() to leave the controlling tty, then fork+exit so the surviving grandchild is no longer a session
+leader (and so cannot reacquire a tty), close the std streams, and chdir to / to break any cwd dependency on the caller. The
+SIGCHLD ignore between the two forks reaps the intermediate child without a waitpid; it is reset to SIG_DFL afterward so the
+detached process can use waitpid() normally on its own children.
 ***********************************************************************************************************************************/
 #include <build.h>
 

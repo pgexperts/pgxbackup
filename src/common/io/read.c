@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Read Interface
+
+Implements the read-side state machine that drives bytes from a backend (file descriptor, buffer, storage object) through the
+attached filter chain and into the caller's buffer. The internal `output` buffer holds bytes the filter chain has already produced
+but the caller has not yet consumed; it is lazily allocated only for the small/line/varint helpers that need to peek across calls.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -61,12 +65,16 @@ ioReadOpen(IoRead *const this)
 
     ASSERT(this != NULL);
     ASSERT(!this->pub.opened && !this->pub.closed);
+    // Filters and blocking reads do not mix: a blocking driver fills the caller buffer to capacity, but a filter chain can produce
+    // an arbitrary number of output bytes per input byte (e.g. decompression), so the loop in ioReadInternal() needs the freedom
+    // to short-read.
     ASSERT(ioFilterGroupSize(this->pub.filterGroup) == 0 || !ioReadBlock(this));
 
     // Open if the driver has an open function
     const bool result = ioReadInterface(this)->open != NULL ? ioReadInterface(this)->open(ioReadDriver(this)) : true;
 
-    // Only open the filter group if the read was opened
+    // Only open the filter group if the read was opened. Some drivers can refuse to open (e.g. missing optional file); in that
+    // case the filter chain stays uninitialized and the read is effectively a no-op.
     if (result)
         ioFilterGroupOpen(this->pub.filterGroup);
 
@@ -114,7 +122,9 @@ ioReadInternal(IoRead *const this, Buffer *const buffer, const bool block)
 
     while (!ioReadEof(this) && bufRemains(buffer) > 0)
     {
-        // Process input buffer again to get more output
+        // Process input buffer again to get more output. inputSame means a filter could not fit all of its output into the
+        // last output buffer, so the same input must be reprocessed before any new input is fetched -- skipping this would
+        // discard the still-pending bytes.
         if (ioFilterGroupInputSame(this->pub.filterGroup))
         {
             ioFilterGroupProcess(this->pub.filterGroup, this->input, buffer);
@@ -129,14 +139,18 @@ ioReadInternal(IoRead *const this, Buffer *const buffer, const bool block)
                 {
                     bufUsedZero(this->input);
 
-                    // If blocking then limit the amount of data requested
+                    // If blocking then limit the amount of data requested. This avoids reading more from the driver than the
+                    // caller asked for when no filters can buffer the excess; the limit is cleared right after so the buffer's
+                    // capacity is restored for the next read.
                     if (ioReadBlock(this) && bufRemains(this->input) > bufRemains(buffer))
                         bufLimitSet(this->input, bufRemains(buffer));
 
                     ioReadInterface(this)->read(ioReadDriver(this), this->input, block);
                     bufLimitClear(this->input);
                 }
-                // Set input to NULL and flush (no need to actually free the buffer here as it will be freed with the mem context)
+                // Set input to NULL and flush (no need to actually free the buffer here as it will be freed with the mem context).
+                // A NULL input is the protocol that tells filters "no more bytes are coming -- emit any final state" (e.g. the
+                // last block of compressed output, the trailing checksum bytes, etc.).
                 else
                     this->input = NULL;
             }
@@ -150,7 +164,8 @@ ioReadInternal(IoRead *const this, Buffer *const buffer, const bool block)
                 break;
         }
 
-        // Eof when no more input and the filter group is done
+        // Eof when no more input and the filter group is done. Both conditions matter: filters may still be flushing buffered
+        // state after the driver has reported EOF.
         this->pub.eofAll = ioReadEofDriver(this) && ioFilterGroupDone(this->pub.filterGroup);
     }
 
@@ -264,6 +279,9 @@ ioReadSmall(IoRead *const this, Buffer *const buffer)
 
 /***********************************************************************************************************************************
 The entire string to search for must fit within a single buffer.
+
+This is intentional: it bounds line-length DoS exposure when reading from untrusted protocols. The buffer defaults to 1 MiB
+(ioBufferSize()); a line longer than that throws FileReadError rather than growing the buffer without limit.
 ***********************************************************************************************************************************/
 FN_EXTERN String *
 ioReadLineParam(IoRead *const this, const bool allowEof)
@@ -318,7 +336,8 @@ ioReadLineParam(IoRead *const this, const bool allowEof)
         // Read data if no linefeed was found in the existing buffer
         if (result == NULL)
         {
-            // If there is remaining data left in the internal output buffer then trim off the used data
+            // If there is remaining data left in the internal output buffer then trim off the used data. Compacting here is what
+            // lets a partial line span multiple driver reads while still keeping the line itself contiguous in memory for memchr.
             if (outputInternalRemains > 0)
             {
                 memmove(
@@ -401,7 +420,8 @@ ioReadVarIntU64(IoRead *const this)
     }
 
     // By this point all bytes should have been read so error if this is not the case. This could be due to a coding error or
-    // corrupton in the data stream.
+    // corrupton in the data stream. The loop above caps the read at CVT_VARINT128_BUFFER_SIZE bytes (10 -- ceil(64/7)), which is
+    // enough to encode any uint64; a continuation bit still set after that means the encoding is malformed.
     if (byte >= 0x80)
         THROW(FormatError, "unterminated base-128 integer");
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Lock Handler
+
+Process-anchored advisory file locks (flock) used to keep concurrent pgBackRest invocations off each other's repositories. The
+lock file's body is a JSON record (exec id, pid, optional progress) that other tools (`info` command) can read; staleness is
+detected via flock acquisition rather than pid liveness because flock is auto-released by the kernel on process death.
 ***********************************************************************************************************************************/
 #ifndef COMMON_LOCK_H
 #define COMMON_LOCK_H

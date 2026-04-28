@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Exec Configuration
+
+Reconstructs a command-line argument list suitable for invoking another pgxbackup process (typically a local or remote worker
+spawned by protocol/helper.c). It walks every option in the current config and emits the --option=value form for any option
+that is valid for the target command/role and either was originally set on the command line (when local=true and we cannot
+rely on the worker reading the same config files) or has been overridden via optionReplace. Secure options and the
+repo-cipher-type pair are intentionally skipped -- secrets aren't passed on the command line.
 ***********************************************************************************************************************************/
 #include <build.h>
 

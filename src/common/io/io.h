@@ -1,7 +1,10 @@
 /***********************************************************************************************************************************
 IO Functions
 
-Common IO functions.
+Top-level helpers and process-wide configuration for the IO layer. The IO layer is composed of three abstractions: IoRead/IoWrite
+(byte streams over files, sockets, buffers, etc.), IoFilter/IoFilterGroup (composable byte transforms such as compression,
+encryption, hashing, and size counting), and IoClient/IoServer/IoSession (connection-oriented protocol drivers built on top of an
+IoRead and IoWrite pair). The buffer size and timeout below are global tuning knobs that all of these layers consult.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_IO_H
 #define COMMON_IO_IO_H

@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Stack Trace Handler
+
+Maintains an explicit per-process call stack pushed and popped by the FUNCTION_LOG_* and FUNCTION_TEST_* macros (via STACK_TRACE_PUSH
+and STACK_TRACE_POP) so that error messages can include parameter values and a useful trace even on platforms or build configs where
+libbacktrace is unavailable. When libbacktrace is present (HAVE_LIBBACKTRACE), stackTraceToZ merges the runtime backtrace with our
+synthetic stack to combine real source lines with logged parameter values. Pushes are also tagged with errorTryDepth() so
+stackTraceClean can unwind frames added inside a TRY block when an exception is caught.
 ***********************************************************************************************************************************/
 #ifndef COMMON_STACKTRACE_H
 #define COMMON_STACKTRACE_H

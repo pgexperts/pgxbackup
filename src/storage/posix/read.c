@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Posix Storage Read
+
+Implements StorageRead via plain read(2) on a Unix file descriptor. Honors offset (via lseek at open) and limit (capped at the
+read level so we never advance past the limit even if the buffer is larger).
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -146,6 +149,8 @@ storageReadPosix(THIS_VOID, Buffer *const buffer, const bool block)
 
         // If less data than expected was read or the limit has been reached then EOF. The file may not actually be EOF but we are
         // not concerned with files that are growing. Just read up to the point where the file is being extended.
+        // Note: this is the right behavior for backup -- pg_basebackup snapshot semantics mean we want a consistent prefix at
+        // the moment we opened the file, not whatever bytes get appended afterward.
         if ((size_t)actualBytes != expectedBytes || this->current == limit)
             this->eof = true;
     }

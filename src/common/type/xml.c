@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Xml Handler
+
+Thin wrapper over libxml2 used primarily for parsing S3, GCS, and Azure object-storage responses (which are XML, not JSON). The
+underlying xmlDoc is freed via a mem-context callback so it tracks the lifetime of the XmlDocument object automatically.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -343,6 +346,10 @@ xmlDocumentNewBuf(const Buffer *const buffer)
     {
         *this = (XmlDocument){{0}};                                 // Extra braces are required for older gcc versions
 
+        // The trailing 0 is libxml2's "default options" value — no XML_PARSE_NONET (network access not explicitly disabled), no
+        // XML_PARSE_NOENT (entity expansion left at the libxml2 default). All current callers feed this trusted bytes from a
+        // remote object-store response over an authenticated connection, but the option choice is worth being aware of when
+        // adding new callers.
         if ((this->xml = xmlReadMemory((const char *)bufPtrConst(buffer), (int)bufUsed(buffer), "noname.xml", NULL, 0)) == NULL)
             THROW_FMT(FormatError, "invalid xml in %zu byte(s):\n%s", bufUsed(buffer), strZ(strNewBuf(buffer)));
 

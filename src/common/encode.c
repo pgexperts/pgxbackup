@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Binary to String Encode/Decode
+
+Standard Base64 (RFC 4648), Base64Url (URL-safe alphabet, no padding), and lowercase hex. Three transformations are exposed for
+each: encode, encode-size, decode, decode-size. Decode functions validate the input first (rejecting bad characters, misplaced
+'=' padding, or bad length) and then run the actual byte assembly; this keeps THROW paths separated from the hot loop.
+Base64Url decode is intentionally not implemented -- no caller currently needs it.
 ***********************************************************************************************************************************/
 #include <build.h>
 

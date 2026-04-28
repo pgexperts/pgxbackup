@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Convert JSON to/from KeyValue
+
+Hand-rolled streaming JSON reader and writer used wherever the project ingests or emits structured config (info files, manifests,
+HTTP request/response bodies, archive-info, etc.). The reader is forward-only and uses a stack of containers (arrays/objects) to
+track nesting; the writer enforces ascending key order within an object and rejects keys longer than the inline buffer. Unicode is
+deliberately NOT fully handled — see jsonReadStr() below for the intentional ASCII-only restriction.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -32,6 +37,9 @@ struct JsonRead
     bool complete;                                                  // JSON read is complete
 };
 
+// keyLast is sized so the whole stack item lands at a comfortable struct alignment (the comment about alignment matters when the
+// size is changed). Keys must be strictly less than this size; longer keys throw rather than allocating, keeping the writer
+// allocation-free for keys.
 typedef struct JsonWriteStack
 {
     JsonType type;                                                  // Container type
@@ -208,7 +216,10 @@ jsonReadTypeNext(JsonRead *const this)
 }
 
 /***********************************************************************************************************************************
-Read the next type ignoring a single comma before the type
+Read the next type ignoring a single comma before the type.
+
+Saves and restores the input pointer so the comma is only "peeked past" — callers that subsequently push a value will re-encounter
+the comma and consume it through the normal path in jsonReadPush().
 ***********************************************************************************************************************************/
 static JsonType
 jsonReadTypeNextIgnoreComma(JsonRead *const this)
@@ -787,7 +798,10 @@ jsonReadObjectEnd(JsonRead *const this)
 }
 
 /**********************************************************************************************************************************/
-// Quickly skip over a valid JSON string
+// Quickly skip over a valid JSON string. NOTE: this validates \uXXXX escapes only with isdigit() — meaning hex digits A-F slip past
+// here, while jsonReadStr() (below) requires the strict form \u00XX (two leading zeros plus two hex digits) and only accepts ASCII.
+// As a result, jsonReadSkip() and jsonReadStr() disagree on certain inputs (e.g. `"¯"` is accepted as a skipped string but
+// rejected as a parsed string).
 static void
 jsonReadSkipStr(JsonRead *const this)
 {
@@ -1014,7 +1028,9 @@ jsonReadStr(JsonRead *const this)
                 {
                     this->json++;
 
-                    // We don't know how to decode anything except ASCII so fail if it looks like Unicode
+                    // We don't know how to decode anything except ASCII so fail if it looks like Unicode. Note this is strictly
+                    // tighter than jsonReadSkipStr() above, which is only checking that there are four "digits" — see header
+                    // comment at jsonReadSkipStr.
                     if (strncmp(this->json, "00", 2) != 0)
                         THROW_FMT(JsonFormatError, "unable to decode at: %s", this->json - 2);
 
@@ -1378,7 +1394,8 @@ jsonWritePush(JsonWrite *const this, const JsonType type, const String *const ke
             if (this->key)
                 THROW_FMT(JsonFormatError, "key has already been written");
 
-            // Also check that the key is after the last key
+            // Strict ascending key order is enforced — the JSON output of pgBackRest is byte-stable across runs (used in
+            // checksums, manifests, etc.), so callers must add keys in sorted order or fail loudly here.
             if (item->keyLast[0] != '\0' && strCmpZ(key, item->keyLast) <= 0)
                 THROW_FMT(JsonFormatError, "key '%s' is not after prior key '%s'", strZ(key), item->keyLast);
 

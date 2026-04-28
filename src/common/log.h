@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Log Handler
+
+User-facing logging interface. Three independent sinks (stdout, stderr, file) each have their own configured level; logInit is the
+only way to set them and must be called once before any LOG_* call. Use the LOG_* macros rather than the underlying logInternal*
+functions: they capture __FILE__/__func__ for debug output and short-circuit via IF_LOG_ANY when the message would be discarded
+by every sink, avoiding format-argument evaluation.
 ***********************************************************************************************************************************/
 #ifndef COMMON_LOG_H
 #define COMMON_LOG_H

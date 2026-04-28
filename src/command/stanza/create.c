@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Stanza Create Command
+
+Initializes the per-stanza directory structure in the repo and writes the initial archive.info / backup.info pair (plus their
+.copy duplicates) describing the current PostgreSQL incarnation. Acquires both archive and backup locks (lockTypeAll) so it
+cannot race with an in-flight backup or archive-push. Idempotent in the common case: if matching info files already exist,
+the command succeeds without modification.
 ***********************************************************************************************************************************/
 #include <build.h>
 

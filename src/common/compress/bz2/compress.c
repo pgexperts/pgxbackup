@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 BZ2 Compress
+
+Lifecycle is the standard libbz2 streaming API:
+  BZ2_bzCompressInit (in constructor) -> BZ2_bzCompress(BZ_RUN, ...) per input chunk -> BZ2_bzCompress(BZ_FINISH, ...) once
+  uncompressed==NULL -> BZ_STREAM_END marks done -> BZ2_bzCompressEnd (in free callback).
+The `raw` flag is accepted for filter-API uniformity but ignored: bzip2 has no rawer-than-stream variant. The flushing flag
+latches once the caller passes uncompressed==NULL; subsequent process calls must also pass NULL until done is set.
 ***********************************************************************************************************************************/
 #include <build.h>
 

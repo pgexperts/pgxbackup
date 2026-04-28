@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Log Handler
+
+Implementation of the LOG_* macros. All log routing decisions live here -- callers never write directly to fds. The static
+logBuffer is reused across calls because logging must remain functional during low-memory and error-handling paths where heap
+allocation may not be safe; this means logging is single-threaded by construction (acceptable because pgBackRest workers are
+processes, not threads).
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -104,7 +109,10 @@ logLevelStr(const LogLevel logLevel)
     FUNCTION_TEST_RETURN_CONST(STRINGZ, logLevelList[logLevel]);
 }
 
-/**********************************************************************************************************************************/
+/***********************************************************************************************************************************
+Recompute logLevelAny -- the maximum (i.e. most verbose) of the three sink levels. Cached so the hot logAny() check used by the
+LOG_* macros is one comparison rather than three. Must be called from every place that mutates a sink level or fd.
+***********************************************************************************************************************************/
 static void
 logAnySet(void)
 {
@@ -378,7 +386,9 @@ logPre(
         logBuffer + result.bufferPos, sizeof(logBuffer) - result.bufferPos, "P%0*u %*s: ", logProcessSize,
         processId == (unsigned int)-1 ? logProcessId : processId, 6, logLevelStr(logLevel));
 
-    // When writing to stderr the timestamp, process, and log level alignment will be skipped
+    // stderr output starts at the log level label rather than the start of the buffer: timestamp/process columns are dropped so
+    // that interactive use (tty stderr) is more readable. The same single buffer is used for both sinks; we just hand stderr a
+    // pointer further into it.
     result.logBufferStdErr = logBuffer + result.bufferPos - strlen(logLevelStr(logLevel)) - 2;
 
     // Set the indent size -- this will need to be adjusted for stderr

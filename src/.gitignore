@@ -5,6 +5,6 @@ autom4te.cache
 /config.status
 /Makefile
 /build.auto.h
-/pgbackrest
+/pgxbackup
 /postgres/interface.auto.c.inc
 /build-code

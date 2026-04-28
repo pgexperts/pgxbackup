@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 TLS Client
+
+Wraps an arbitrary IoClient (typically SocketClient) with OpenSSL. Hostname verification is implemented in-process rather than via
+SSL_set1_host()/X509_VERIFY_PARAM so that we can match the same SAN-then-CN order and the same wildcard rules used elsewhere in the
+PostgreSQL ecosystem (see tlsClientHostVerify below). The SSL_CTX is constructed in tlsContext() with verifyPeer-dependent
+hardening; see comments there.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -184,6 +189,10 @@ tlsClientHostVerifyIPAddr(const String *const host, const Buffer *const address)
 Verify that the server certificate matches the hostname we connected to
 
 The certificate's Common Name and Subject Alternative Names are considered.
+
+INVARIANT: SAN (Subject Alternative Names) take precedence over CN. Per RFC 2818 / RFC 6125, if any dNSName SAN is present the CN
+must be ignored entirely — even if the SAN does not match. This prevents a CA-signed cert with a matching CN but unrelated SAN
+from being accepted, which is the historical attack vector.
 ***********************************************************************************************************************************/
 static bool
 tlsClientHostVerify(const String *const host, X509 *const certificate)
@@ -322,6 +331,9 @@ tlsClientOpen(THIS_VOID)
 
             // Set server host name used for validation. The exception here is necessary for MacOS which for some reason defines the
             // host name parameter as void * rather than const char * as on most platforms.
+            // ORDERING: SNI must be set on the SSL session BEFORE SSL_connect() (called inside tlsSessionNew below), or the
+            // ClientHello will go out without the server_name extension and a name-based virtual-host server (S3, GCS, Azure, any
+            // SNI-routed proxy) will return the wrong certificate or fail the handshake.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
             cryptoError(SSL_set_tlsext_host_name(tlsSession, strZ(this->host)) != 1, "unable to set TLS host name");
@@ -366,7 +378,8 @@ tlsClientOpen(THIS_VOID)
         }
         while (retry);
 
-        // Authenticate TLS session
+        // Authenticate TLS session. ORDERING: this runs AFTER tlsSessionNew completes the SSL_connect handshake, so the peer cert
+        // chain is available for verification. tlsClientAuth() is a no-op when verifyPeer=false.
         ASSERT(result != NULL);
         ioSessionAuthenticatedSet(result, tlsClientAuth(this, tlsSession));
 
@@ -442,7 +455,11 @@ tlsClientNew(
         // Set callback to free context
         memContextCallbackSet(objMemContext(this), tlsClientFreeResource, this);
 
-        // Enable safe compatibility options
+        // Enable safe compatibility options.
+        // SECURITY NOTE: SSL_OP_ALL is OpenSSL's bag of "bug-compatibility" workarounds for ancient buggy peers (see
+        // openssl/ssl.h). Today this mostly enables harmless TLS 1.0/1.1-era quirks, but the set has historically grown and is
+        // not curated by us. Combined with the verifyPeer-gated TLS-1.2 floor in tlsContext(), the practical impact is bounded;
+        // still, when verifyPeer=false this widens what handshakes will succeed.
         SSL_CTX_set_options(this->context, SSL_OP_ALL);
 
         // Set location of CA certificates if the server certificate will be verified

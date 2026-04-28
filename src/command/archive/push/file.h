@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Archive Push File
+
+Worker-side per-segment push. Reads the local WAL once and fans it out to every configured repo, dedup'ing against any segment
+already present (matching checksum = success without re-pushing; mismatching checksum = ArchiveDuplicateError, never overwrite).
 ***********************************************************************************************************************************/
 #ifndef COMMAND_ARCHIVE_PUSH_FILE_H
 #define COMMAND_ARCHIVE_PUSH_FILE_H

@@ -1,5 +1,24 @@
 /***********************************************************************************************************************************
 Restore File
+
+Worker-side per-file restore. Two phases: (1) decide outcome per file -- Preserve (delta keeps the existing pg file),
+Zero (selective restore zeroes the file content but creates the inode at the right size), or Copy (fetch from repo); (2) actually
+copy the files marked Copy.
+
+Delta semantics:
+- delta=false:  every Copy file is read from the repo regardless of what is on disk (files marked Preserve are still kept).
+- delta=true:   if the on-disk file matches the manifest's expected size + checksum it is preserved; if it is larger it is
+                truncated back to the expected size and re-checksummed (handles append-only files); if it is smaller and the file
+                is not block-incremental it must be recopied entirely.
+- deltaForce:   skip the checksum and use size + mtime instead. Faster but trusts that nothing has corrupted the on-disk file.
+
+Block-incremental restore: if the block map is present and the existing file is non-zero, blockChecksumNew() generates a hash list
+for the existing file and only the super blocks containing blocks whose hashes differ are fetched from the repo. The resulting
+file is re-hashed end-to-end at the bottom of this function as a paranoia check, since a bad block map combined with a bad on-disk
+file would otherwise produce a silently wrong restore.
+
+The repoFileLimit aggregation in phase two batches contiguous offsets within a single bundled repo file so multiple PG files can
+be reconstructed from one read -- important for object stores where range-read setup cost dominates.
 ***********************************************************************************************************************************/
 #include <build.h>
 

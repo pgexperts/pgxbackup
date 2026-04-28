@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Stop Command
+
+Creates a stop file (per-stanza or global) so all subsequent pgBackRest invocations refuse to run, and optionally signals any
+processes currently holding command locks (--force) to abort. Without --force the stop file alone is set: in-progress commands
+finish normally but new ones are blocked.
 ***********************************************************************************************************************************/
 #include <build.h>
 

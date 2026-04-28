@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 BZ2 Decompress
+
+Lifecycle: BZ2_bzDecompressInit (in constructor) -> BZ2_bzDecompress() per input chunk until BZ_STREAM_END -> BZ2_bzDecompressEnd
+(in free callback). A NULL `compressed` buffer is treated as premature EOF (truncated/zero-length file) and raises FormatError;
+for valid streams, end-of-data is detected via BZ_STREAM_END in the result code, never via a flush sentinel from the caller.
 ***********************************************************************************************************************************/
 #include <build.h>
 

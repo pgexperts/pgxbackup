@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Crypto Common
+
+Shared types (CipherType, CipherMode, HashType encoded as StringIds) and one-time OpenSSL initialization plus error-throwing
+helpers used by both the cipher and hash modules.
 ***********************************************************************************************************************************/
 #ifndef COMMON_CRYPTO_COMMON_H
 #define COMMON_CRYPTO_COMMON_H

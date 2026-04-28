@@ -1,5 +1,17 @@
 /***********************************************************************************************************************************
 Lock Handler
+
+Cross-process advisory locking using flock(2). Two key properties make this work safely:
+
+1. flock locks are anchored to the kernel-level file description, so the kernel releases the lock automatically when the holding
+   process exits (clean or crashed) -- there is no need for a "stale lock cleanup" pass. lockRead() exploits this directly: if it
+   can flock() the file with LOCK_NB, the original holder is gone and the lock is reported as unlocked.
+2. The lock file's contents (JSON: exec id, process id, optional progress fields) are written *under* the held lock, so any
+   reader that successfully acquires the flock() either sees a complete prior write or nothing at all.
+
+A subtle exception is the LOCK_ON_EXEC_ID sentinel (-2 in the fd field): when a process tries to lock a file already held by a
+sibling worker spawned from the same main pgxbackup invocation (matching exec-id), we treat the lock as already-held-by-us
+rather than failing. Such a sibling-acquired lock owns no fd and must not be unlinked or closed on release.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -179,6 +191,8 @@ lockAcquire(const String *const lockFileName, const LockAcquireParam param)
             // Assume there will be no retry
             retry = false;
 
+            // Open the file before attempting flock(); the file must exist to flock it. If the parent dir is missing we create
+            // it and retry once -- but only once, to avoid spinning on permission/IO errors that would not be cured by a retry.
             // Attempt to open the file
             if ((fd = open(strZ(lockFilePath), O_RDWR | O_CREAT, STORAGE_MODE_FILE_DEFAULT)) == -1)
             {
@@ -307,7 +321,9 @@ lockRead(const String *const lockFileName, const LockReadParam param)
         }
         else
         {
-            // Attempt a lock on the file - if a lock can be acquired that means the original process died without removing the lock
+            // Attempt a lock on the file - if a lock can be acquired that means the original process died without removing the lock.
+            // This relies on the kernel auto-releasing flock() on process exit; do not replace this call with a fcntl(F_SETLK)
+            // probe that returns process state, because flock and POSIX record locks are not interchangeable here.
             if (flock(fd, LOCK_EX | LOCK_NB) == 0)
             {
                 result.status = lockReadStatusUnlocked;
@@ -334,7 +350,9 @@ lockRead(const String *const lockFileName, const LockReadParam param)
             if (param.remove)
                 unlink(strZ(lockFilePath));
 
-            // Close after unlinking to prevent a race condition where another process creates the file as we remove it
+            // Close after unlinking to prevent a race condition where another process creates the file as we remove it.
+            // Closing first would release our flock briefly, allowing a third process to slip in, recreate, and lock the file
+            // before our unlink ran -- which would then unlink *that* process's lock file.
             close(fd);
         }
     }
@@ -430,12 +448,15 @@ lockRelease(const LockReleaseParam param)
     // Else release all locks
     else
     {
-        // Release until list is empty
+        // Release until list is empty. Order: unlink the file first, then close the fd. close() releases the flock; if we
+        // reversed the order, another process could acquire the file (and lock) between our close() and unlink() and we would
+        // then unlink its lock file out from under it.
         while (!lstEmpty(lockLocal.lockList))
         {
             LockFile *const lockFile = lstGet(lockLocal.lockList, 0);
 
-            // Remove lock file if this lock was not acquired by matching execId
+            // Remove lock file if this lock was not acquired by matching execId. LOCK_ON_EXEC_ID locks own no fd or file -- the
+            // sibling worker that actually flock()ed it is responsible for cleanup.
             if (lockFile->fd != LOCK_ON_EXEC_ID)
             {
                 storageRemoveP(lockLocal.storage, lockFile->name);

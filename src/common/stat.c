@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Statistics Collector
+
+Implementation of the simple counter store described in stat.h. Values live in a sorted List inside a context anchored at
+memContextTop() so that counters survive the temp contexts of typical command execution and can be flushed to JSON at exit.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -67,7 +70,8 @@ statGetOrCreate(const String *const key)
     // If not found then create it
     if (stat == NULL)
     {
-        // Add the new stat
+        // Allocate the duplicated key in the list's own context so it shares the list's lifetime, not the caller's (the caller
+        // is typically inside MEM_CONTEXT_TEMP_BEGIN).
         MEM_CONTEXT_BEGIN(lstMemContext(statLocalData.stat))
         {
             lstAdd(statLocalData.stat, &(Stat){.key = strDup(key)});

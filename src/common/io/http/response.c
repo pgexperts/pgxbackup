@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 HTTP Response
+
+Parses an HTTP/1.1 response off an HttpSession and streams the body. The state machine has three exit conditions for the body:
+content-length (fixed-size body, default), Transfer-Encoding: chunked (chunk-size header line + payload + blank-line separator),
+or close-on-eof (HTTP/1.0 OR explicit Connection: close OR no length headers, with body terminated by FIN). Mixing
+Transfer-Encoding and Content-Length is rejected per RFC 7230 because it has historically been used for HTTP request-smuggling
+attacks. Once content_eof is reached, httpResponseDone() returns the session to the client pool — UNLESS the server signaled
+close, in which case the session is freed so we don't try to reuse a half-shut connection on the next request.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -65,7 +72,8 @@ httpResponseDone(HttpResponse *const this)
     ASSERT(this != NULL);
     ASSERT(this->session != NULL);
 
-    // If close was requested by the server then free the session
+    // If close was requested by the server then free the session. Reusing a session the server has already announced it is
+    // closing leads to spurious retries on the next request when the recycled connection turns out to be dead.
     if (this->closeOnContentEof)
     {
         httpSessionFree(this->session);
@@ -87,6 +95,10 @@ Read content
 ***********************************************************************************************************************************/
 // Helper to determine if it is OK to accept unexpected EOF, e.g. the server closed the socket with properly closing the TLS
 // connection. The idea is that since these types of responses can be validated we should be able to detect a short read.
+//
+// SECURITY NOTE: only XML and JSON content types opt into ignoring unexpected TLS EOF. Both are self-validating (they fail to
+// parse if truncated), which prevents an attacker from silently truncating a response and having us treat the partial result as
+// authoritative. Adding new content types here without an equivalent integrity check would weaken truncation defense.
 static bool
 httpResponseReadIgnoreUnexpectedEof(const HttpResponse *const this)
 {
@@ -333,7 +345,9 @@ httpResponseHeaderRead(HttpResponse *const this, IoRead *const read)
         }
         while (1);
 
-        // Error if transfer encoding and content length are both set
+        // Error if transfer encoding and content length are both set.
+        // SECURITY NOTE: a response with both Transfer-Encoding: chunked AND Content-Length is the canonical setup for
+        // HTTP request/response smuggling between a front-end proxy and a back-end. RFC 7230 says to reject; we reject.
         if (this->contentChunked && this->contentSize > 0)
         {
             THROW_FMT(

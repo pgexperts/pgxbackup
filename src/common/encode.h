@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Binary to String Encode/Decode
+
+Base64 (RFC 4648), Base64Url (URL-safe, no padding -- encode only), and lowercase hex transformations. Decode validates the input
+before assembling bytes so format errors throw early.
 ***********************************************************************************************************************************/
 #ifndef COMMON_ENCODE_H
 #define COMMON_ENCODE_H

@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Backup Manifest Handler
+
+The backup.manifest is the central record of a single backup: the complete list of files, links, paths, and database OIDs that
+were captured, along with each file's checksum, size, timestamp, owner/group/mode, and (for diff/incr backups) the prior
+backup label that supplies the actual file bytes via reference. Restore reads the manifest to know exactly what to recreate
+and where to find each file's data; verify reads it to know what to check. Implementation is split across several .c.inc
+files included below for unity-build reasons -- store/link/build/serialize -- so this file can present one Manifest type
+while the implementation remains modular.
 ***********************************************************************************************************************************/
 #include <build.h>
 

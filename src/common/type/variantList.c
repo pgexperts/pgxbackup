@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Variant List Handler
+
+A typed wrapper over List storing Variant *. Most operations delegate to List via the inline helpers in variantList.h; only the
+non-trivial constructors (varLstNewStrLst, varLstDup) live here.
 ***********************************************************************************************************************************/
 #include <build.h>
 

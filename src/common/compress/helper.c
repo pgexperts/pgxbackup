@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Compression Helper
+
+Selects the right backend (bz2/gz/lz4/zst) given a CompressType enum, file extension, or filter type id. The compressHelperLocal
+table is indexed by CompressType so order in that table must match the enum order in helper.h. Backends compiled out at build
+time (zst when HAVE_LIBZST is undef'd, xz which has no implementation yet) leave their compressNew/decompressNew slots NULL;
+compressTypePresent() converts a missing slot into a clear "not built with X support" user error rather than a NULL-deref crash.
 ***********************************************************************************************************************************/
 #include <build.h>
 

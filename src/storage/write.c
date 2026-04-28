@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Storage Write Interface
+
+Wraps a backend-specific IoWrite. Also exposes storageWriteChunkSize / storageWriteChunkBufferResize for object-store multipart
+uploads -- ascending part sizes amortize the small fixed cost of a part upload over more bytes once we know the file is large.
 ***********************************************************************************************************************************/
 #include <build.h>
 

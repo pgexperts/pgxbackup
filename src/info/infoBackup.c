@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Backup Info Handler
+
+backup.info is the per-stanza index of all currently-retained backups. Each entry summarizes one backup (label, type, size,
+LSN range, parent backup label for incrementals/differentials, references to the InfoPg history that locates which archiveId
+its WAL came from). Save is incremental: backupDataAdd appends a new entry and marks the file updated; expire removes entries
+via backupDataDelete; both rely on the load reconstruction path (infoBackupLoadFileReconstruct) to resync the file with what
+is actually present in the repo's backup directory after a partial failure. As with archive.info, the on-disk file is
+protected by the checksum and format framing in info.c and stored alongside backup.info.copy.
 ***********************************************************************************************************************************/
 #include <build.h>
 

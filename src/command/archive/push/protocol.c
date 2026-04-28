@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Archive Push Protocol Handler
+
+Server-side dispatch for archive-push-file. Receives one segment plus the per-repo data needed to write it (archive id, cipher
+type, cipher pass) so each worker call is self-contained and a worker pool can fan a single source read out to multiple repos.
 ***********************************************************************************************************************************/
 #include <build.h>
 

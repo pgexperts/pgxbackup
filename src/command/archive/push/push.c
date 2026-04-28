@@ -1,5 +1,22 @@
 /***********************************************************************************************************************************
 Archive Push Command
+
+In async mode this command implements a drop-on-overflow WAL pusher:
+
+  - cmdArchivePush() (foreground) is invoked by PostgreSQL's archive_command for one segment, immediately checks the spool for
+    a pre-existing .ok/.error from a prior async run, and if not found launches the async worker (once per storm) and waits.
+  - cmdArchivePushAsync() (worker) drains the entire archive_status/.ready set. It pushes each segment to all configured repos
+    and writes a .ok or .error per segment. If the queue exceeds archive-push-queue-max it instead writes .ok files containing
+    a "dropped because queue is full" warning -- this is a deliberate policy choice: better to lose archive than to fill pg_wal
+    and crash the cluster.
+
+Dedup: archivePushFile() compares the local segment's SHA1 to whatever is already in the repo at that segment's path. If the
+checksums match, no copy is performed (and a warning is emitted only if archive-mode-check is on). If they DO NOT match, that is
+ArchiveDuplicateError and the push fails -- this prevents silent overwrite if two primaries are pushing to the same stanza.
+
+Multi-repo behavior: archivePushFile() opens writers for every configured repo and copies the segment in lockstep. A failure on
+one repo does not abort the pushes to the others, but the command itself fails so PostgreSQL retries the segment and any repo
+that did not get it will pick it up next time.
 ***********************************************************************************************************************************/
 #include <build.h>
 

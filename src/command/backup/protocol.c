@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Backup Protocol Handler
+
+Server-side dispatch for the backup-file protocol command. Runs inside a forked local worker (or in a remote process across the
+TLS/SSH protocol). Unpacks the BackupFile parameter list, calls into command/backup/file.c::backupFile(), and re-packs the result
+list. The on-the-wire encoding here is the contract between the dispatcher (backupJobCallback in backup.c) and the worker -- any
+field added on one side must be added on the other.
 ***********************************************************************************************************************************/
 #include <build.h>
 

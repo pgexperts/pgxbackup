@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Storage Interface
+
+Wrapper that delegates to a backend driver via the StorageInterface vtable. Path-expression evaluation, target-time version
+caching, and feature-flag invariants live here so that backends only have to implement primitive ops on canonical absolute paths.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -86,7 +89,9 @@ storageNew(
             .pathExpressionFunction = pathExpressionFunction,
         };
 
-        // Create storage cache list
+        // Create storage cache list. Used to cache directory listings keyed by path so that storageInfo() with targetTime can
+        // resolve a versioned file by reusing the prior list call rather than issuing one HEAD per file -- critical for
+        // restore-as-of from object-store versioning.
         if (this->targetTime != 0)
             this->cacheList = lstNewP(sizeof(StorageListCache), .comparator = lstComparatorStr);
 
@@ -473,6 +478,9 @@ storageMove(const Storage *const this, StorageRead *const source, StorageWrite *
 
     MEM_CONTEXT_TEMP_BEGIN()
     {
+        // Drivers that can do an atomic rename return true. POSIX returns false on EXDEV (cross-device), so we fall back to
+        // copy+remove. Object-store backends do not implement move at all (no fast server-side rename), so they would never
+        // get here -- the assert above on interface.move != NULL would have fired.
         // If the file can't be moved it will need to be copied
         if (!storageInterfaceMoveP(storageDriver(this), source, destination))
         {
@@ -594,6 +602,9 @@ storagePath(const Storage *const this, const String *pathExp, const StoragePathP
 
     String *result;
 
+    // Path expression syntax: '<EXPRESSION>[/sub/path]' is replaced by pathExpressionFunction (e.g. "<REPO:BACKUP>/foo" expands
+    // through storageRepoPathExpression in helper.c). Absolute paths must be contained within the base path unless noEnforce
+    // is set; relative paths are joined onto the base. The base path is itself canonicalized to absolute by the constructor.
     // If there is no path expression then return the base storage path
     if (pathExp == NULL)
     {

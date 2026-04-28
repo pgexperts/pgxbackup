@@ -6,6 +6,13 @@ can be gathered using ioFilterGroupResult() for any filters that produce results
 
 Processing is complex and asymmetric for read/write so should be done via the IoRead and IoWrite objects. General users need only
 call ioFilterGroupNew(), ioFilterGroupAdd(), and ioFilterGroupResult().
+
+Composition rules: filters are applied strictly in insertion order. Pick the order to match the *byte direction*:
+  - On the read side bytes flow driver -> filter[0] -> ... -> caller, so a checksum-of-original-bytes goes first and a
+    decompression filter that produces those bytes goes earlier still.
+  - On the write side bytes flow caller -> filter[0] -> ... -> driver, so a checksum-of-final-bytes goes last and a compression
+    filter that produces those bytes goes later still.
+The same filter type may appear multiple times; the `idx` field on ioFilterGroupResult() disambiguates which one's result to read.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_FILTER_GROUP_H
 #define COMMON_IO_FILTER_GROUP_H

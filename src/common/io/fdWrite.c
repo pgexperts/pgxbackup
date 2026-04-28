@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 File Descriptor Io Write
+
+IoWrite driver backed by a POSIX file descriptor. The write loop handles partial writes and EAGAIN; on EAGAIN it waits for the fd
+to become writable (with timeout) before retrying. ioFdWriteInternal() is split out as a thin wrapper around write(2) so unit
+tests can mock the syscall layer.
 ***********************************************************************************************************************************/
 #include <build.h>
 

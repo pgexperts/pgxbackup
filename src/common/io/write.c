@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 IO Write Interface
+
+Implements the write-side state machine: feed caller bytes through the filter chain into an internal `output` buffer; whenever
+that buffer fills, hand it to the driver. ioWriteClose() drives a final NULL-input flush loop so compression/encryption filters
+can emit their trailing state before the driver is closed.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -70,7 +74,9 @@ ioWriteOpen(IoWrite *const this)
     if (ioWriteInterface(this)->open != NULL)
         ioWriteInterface(this)->open(ioWriteDriver(this));
 
-    // Track whether filters were added to prevent seek()/flush() from being called later since they won't work with most filters
+    // Track whether filters were added to prevent seek()/flush() from being called later since they won't work with most filters.
+    // Snapshot is taken at open time -- filters can no longer be added after this point, so the flag accurately reflects the
+    // chain for the rest of the object's lifetime.
 #ifdef DEBUG
     this->filterGroupSet = ioFilterGroupSize(this->pub.filterGroup) > 0;
 #endif
@@ -104,7 +110,8 @@ ioWrite(IoWrite *const this, const Buffer *const buffer)
         {
             ioFilterGroupProcess(this->pub.filterGroup, buffer, this->output);
 
-            // Write data if the buffer is full
+            // Write data if the buffer is full. Note: a partially full output buffer is *not* drained here -- it carries over to
+            // the next ioWrite() call, batching small writes into one driver call.
             if (bufRemains(this->output) == 0)
             {
                 ioWriteInterface(this)->write(ioWriteDriver(this), this->output);
@@ -112,6 +119,7 @@ ioWrite(IoWrite *const this, const Buffer *const buffer)
                 bufUsedZero(this->output);
             }
         }
+        // inputSame means a filter could not consume the full input on the last pass; loop until the filter chain says otherwise.
         while (ioFilterGroupInputSame(this->pub.filterGroup));
     }
 
@@ -270,7 +278,9 @@ ioWriteClose(IoWrite *const this)
     ASSERT(this != NULL);
     ASSERT(this->opened && !this->closed);
 
-    // Flush remaining data
+    // Flush remaining data. Pass NULL input to signal end-of-stream so filters that hold trailing state (gzip footer, encryption
+    // padding/tag, hash output, etc.) get a chance to emit it. Loop until the chain reports done, draining whenever the output
+    // buffer fills *or* on the final iteration so any short trailing data still makes it to the driver.
     do
     {
         ioFilterGroupProcess(this->pub.filterGroup, NULL, this->output);

@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Restore Protocol Handler
+
+Server-side dispatch for the restore-file protocol command. Unpacks RestoreFile parameters, calls command/restore/file.c::
+restoreFile(), and re-packs the per-file result. Wire format must stay in sync with restore.c::restoreJobCallback().
 ***********************************************************************************************************************************/
 #include <build.h>
 

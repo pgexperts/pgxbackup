@@ -3,6 +3,9 @@ Block Hash List
 
 Build a list of hashes based on a block size. This is used to compare the contents of a file to block map to determine what needs to
 be updated.
+
+The checksums emitted here are compared byte-for-byte against the BlockMapItem checksums recorded at backup time. Algorithm choice,
+checksum width, and block boundaries must therefore match blockIncr exactly — see blockIncr.h for the xxHash details.
 ***********************************************************************************************************************************/
 #ifndef COMMAND_RESTORE_BLOCK_CHECKSUM_H
 #define COMMAND_RESTORE_BLOCK_CHECKSUM_H

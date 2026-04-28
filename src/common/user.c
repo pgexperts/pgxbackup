@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 System User/Group Management
+
+Caches the calling process's real uid/gid and resolved user/group names at userInit() time so subsequent log/error messages do not
+re-enter getpwuid/getgrgid (which can be slow and is non-reentrant under nsswitch). The cache lives in memContextTop so it
+persists for the lifetime of the process. userInit() is idempotent. userHome / userHomeFromId are gated on HAVE_LIBSSH2 because
+SFTP is the only feature that needs the home directory.
 ***********************************************************************************************************************************/
 #include <build.h>
 

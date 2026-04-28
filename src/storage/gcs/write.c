@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 GCS Storage File Write
+
+Buffers up to chunkSize, then either uploads as a single multipart-form request (small file) or starts a GCS resumable upload
+session and pushes successive byte-range chunks to the session URL. On close we verify the resulting object's MD5 hash against
+the locally-computed hash so we can detect corruption that the wire-level retries did not catch.
 ***********************************************************************************************************************************/
 #include <build.h>
 

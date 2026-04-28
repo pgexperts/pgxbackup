@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Azure Storage File Write
+
+Buffers up to blockSize, then either uploads as a single PUT (small file fits in one block) or writes individual block-blob
+blocks via PUT Block and assembles them on close with a PUT Block List. Block IDs incorporate fileId to avoid collisions when
+the same blob name is rewritten -- Azure indexes uncommitted blocks per blob so a previous abandoned upload's block IDs would
+otherwise be reusable, which is a footgun.
 ***********************************************************************************************************************************/
 #include <build.h>
 

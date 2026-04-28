@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Repository Get Command
+
+Reads a file from the configured repo to stdout, transparently decrypting and decompressing when the file is stored that way.
+Used by tooling that needs raw access to repo contents (manifests, info files, archived WAL) without going through the higher
+level archive-get/restore commands.
 ***********************************************************************************************************************************/
 #include <build.h>
 

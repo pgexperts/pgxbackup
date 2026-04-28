@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 SFTP Storage File Write
+
+Writes via libssh2_sftp_write. Atomic semantics mirror POSIX: write to "<name>.pgxbackup.tmp" and rename on close. As with
+the SFTP read path, every libssh2 call is wrapped in a wait-for-fd loop to handle the non-blocking session socket cleanly.
 ***********************************************************************************************************************************/
 #include <build.h>
 

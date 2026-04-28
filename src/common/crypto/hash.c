@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Cryptographic Hash
+
+OpenSSL-backed message digest (sha1, sha256, ...) and HMAC. MD5 is handled by a vendored implementation rather than OpenSSL because
+many distributions ship FIPS-enabled OpenSSL builds that refuse MD5 outright; pgBackRest still needs MD5 for non-cryptographic uses
+(e.g. S3 Content-MD5 payload integrity), so we bypass the OpenSSL EVP path for that one digest.
 ***********************************************************************************************************************************/
 #include <build.h>
 

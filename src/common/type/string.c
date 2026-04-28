@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 String Handler
+
+Implementation of the project String type. Strings created with strNew() can be appended to (the buffer is allocated separately so
+it can be resized). Strings created with the strNewZ*()/strDup() family are fixed-size and pack the bytes immediately after the
+String object when small enough to fit in the mem context's allocation extra; this avoids a second allocation for the common case.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -50,6 +54,9 @@ Buffer macros
 
 /***********************************************************************************************************************************
 Maximum size of a string
+
+1 GiB. This cap exists because StringPub stores `size` and `extra` as 32-bit bitfields packed into a single 64-bit word; values
+beyond this would overflow when growing a string by `extra` (the resize math doubles the request).
 ***********************************************************************************************************************************/
 #define STRING_SIZE_MAX                                            1073741824
 
@@ -103,7 +110,8 @@ strNewFixed(const size_t size)
 
     CHECK_SIZE(size);
 
-    // If the string is larger than the extra allowed with a mem context then allocate the buffer separately
+    // Two layout strategies. Small strings fit entirely inside the mem context's allocation-extra region (one allocation for both
+    // object and buffer). Large strings get a separate buffer allocation. STR_FIXED_BUFFER below detects the inline case.
     const size_t allocExtra = sizeof(String) + size + 1;
 
     if (allocExtra > MEM_CONTEXT_ALLOC_EXTRA_MAX)
@@ -401,13 +409,14 @@ strResize(String *const this, const size_t requested)
 
     if (requested > this->pub.extra)
     {
-        // Fixed size strings may not be resized
+        // Only strings created with strNew() can grow; strNewFixed() inlines the buffer in the object so it cannot be realloced.
         CHECK(AssertError, !STR_IS_FIXED_BUFFER(), "resize of fixed size string");
 
         // Check size
         CHECK_SIZE(strSize(this) + requested);
 
-        // Calculate new extra needs to satisfy request and leave extra space for new growth
+        // Geometric-ish growth: satisfy the request plus 1.5x the resulting size as headroom. This amortizes repeated strCat()
+        // calls so they don't reallocate on every append.
         this->pub.extra = (unsigned int)(requested + ((strSize(this) + requested) / 2));
 
         // Adding too little extra space usually leads to immediate resizing so enforce a minimum
@@ -849,7 +858,8 @@ strPathAbsolute(const String *const this, const String *const base)
         result = strDup(this);
     }
     // Else we'll need to construct the absolute path. You would hope we could use realpath() here but it is so broken in the Posix
-    // spec that is seems best avoided.
+    // spec that is seems best avoided. This implementation is purely lexical — it does not touch the filesystem and so does not
+    // resolve symlinks.
     else
     {
         ASSERT(base != NULL);
@@ -1104,7 +1114,8 @@ strSizeFormat(const uint64_t size)
             suffix = "MB";
         }
 
-        // Skip precision when it would cause overflow
+        // cvtDivToZ() multiplies dividend by 10^precision internally for rounding; sizes above UINT64_MAX/10 would overflow that
+        // multiplication, so drop precision rather than corrupt the result.
         if (size > UINT64_MAX / 10)
             precision = 0;
 

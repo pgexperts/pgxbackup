@@ -1,5 +1,7 @@
 /***********************************************************************************************************************************
 Block Cipher
+
+OpenSSL-backed block cipher filter for the IO pipeline. The on-disk format is wire-compatible with `openssl enc` so files written by pgBackRest can be decrypted by the openssl command-line tool (and vice versa) given the same passphrase and digest: an 8-byte "Salted__" magic, an 8-byte random salt, then ciphertext. The salt feeds EVP_BytesToKey() (the same KDF as openssl enc) to derive the key+IV from the passphrase; this format and KDF are fixed by interoperability and on-disk compatibility with existing repositories -- changing either would render every encrypted backup unreadable.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -19,7 +21,8 @@ Block Cipher
 Header constants and sizes
 ***********************************************************************************************************************************/
 // Magic constant for salted encrypt. Only salted encrypt is done here, but this constant is required for compatibility with the
-// openssl command-line tool.
+// openssl command-line tool. The literal must remain "Salted__" (8 bytes, no NUL); changing it would break interop with openssl
+// enc and make existing encrypted repositories undecryptable.
 #define CIPHER_BLOCK_MAGIC                                          "Salted__"
 #define CIPHER_BLOCK_MAGIC_SIZE                                     (sizeof(CIPHER_BLOCK_MAGIC) - 1)
 
@@ -123,7 +126,9 @@ cipherBlockProcessBlock(CipherBlock *const this, const uint8_t *source, size_t s
     // Actual destination size
     size_t destinationSize = 0;
 
-    // If the salt has not been generated/read yet
+    // If the salt has not been generated/read yet. The salt is established once per stream before any ciphertext is processed.
+    // On encrypt the magic+salt are emitted at the head of the destination; on decrypt they are consumed from the source. Once
+    // the salt is known the EVP cipher context is initialized and saltDone latches true for the remainder of the stream.
     if (!this->saltDone)
     {
         const uint8_t *salt = NULL;
@@ -131,7 +136,8 @@ cipherBlockProcessBlock(CipherBlock *const this, const uint8_t *source, size_t s
         // On encrypt the salt is generated
         if (this->mode == cipherModeEncrypt)
         {
-            // Add magic to the destination buffer so openssl knows the file is salted
+            // Add magic to the destination buffer so openssl knows the file is salted. With raw=true the magic is omitted to
+            // save 8 bytes; raw streams are NOT openssl-enc-compatible and the producer/consumer must agree out-of-band.
             if (!this->raw)
             {
                 memcpy(destination, CIPHER_BLOCK_MAGIC, CIPHER_BLOCK_MAGIC_SIZE);
@@ -180,7 +186,10 @@ cipherBlockProcessBlock(CipherBlock *const this, const uint8_t *source, size_t s
         // If salt generation/read is done
         if (salt)
         {
-            // Generate key and initialization vector
+            // Generate key and initialization vector. EVP_BytesToKey is OpenSSL's legacy openssl-enc-compatible KDF: the iter
+            // count of 1 below matches what openssl enc emits by default and is what makes round-tripping through the openssl
+            // CLI work. Note that EVP_BytesToKey is deprecated in OpenSSL 3+ in favor of PBKDF2/scrypt/Argon2, but the on-disk
+            // format requires it; do not "upgrade" without a compatibility break.
             uint8_t key[EVP_MAX_KEY_LENGTH];
             uint8_t initVector[EVP_MAX_IV_LENGTH];
 

@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Socket Server
+
+Listening side of the socket layer used by the pgxbackup server (the receiving end of the remote/local protocol over TLS).
+SO_REUSEADDR is set so a restart after a crash can bind without waiting for the kernel TIME_WAIT cleanup. The accept loop is
+single-threaded; concurrency comes from forking one process per accepted connection at the protocol layer.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -185,7 +189,8 @@ sckServerNew(const String *const address, const unsigned int port, const TimeMSe
         strTrunc(this->name);
         strCat(this->name, addrInfoToName(this->address, this->port, addressFound));
 
-        // Bind the address
+        // Bind the address. Retried up to `timeout` because even with SO_REUSEADDR the kernel may briefly hold the port after a
+        // previous instance exits, depending on socket state at shutdown.
         Wait *const wait = waitNew(timeout);
         int result;
 

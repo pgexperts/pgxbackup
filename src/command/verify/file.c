@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Verify File
+
+Reads one repository file end-to-end and confirms its checksum and length match the expected values from the manifest or
+archive.info. Composes the IO filter pipeline that the file was originally written with (decryption, decompression) so the
+checksum is computed over the actual stored bytes equivalent to the original file content. Returns a VerifyResult enum
+indicating ok / missing / checksum-mismatch / size-invalid / other-error.
 ***********************************************************************************************************************************/
 #include <build.h>
 

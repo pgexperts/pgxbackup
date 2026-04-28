@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Check Command
+
+Validates that the configuration, the cluster, and the repo agree well enough that subsequent backups will succeed: tries to
+build a manifest for each configured pg-host, compares the cluster's archive_command and archive_mode against expectations,
+and confirms a WAL segment can be archived end-to-end (force a WAL switch and wait for the resulting segment to appear in
+the repo). The command exits 0 only if every configured pg cluster passes; otherwise the first failure is reported.
 ***********************************************************************************************************************************/
 #include <build.h>
 

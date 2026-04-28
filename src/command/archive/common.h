@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Archive Common
+
+Shared helpers for archive-push and archive-get. Most importantly, the async-mode status protocol: a foreground process spawned by
+PostgreSQL writes a request, an async daemon does the work and writes an ".ok" or ".error" file in the spool dir, and the
+foreground process polls for the matching status file and exits. Status files are the only synchronization channel between the two
+processes — any change to that contract has to be made on both sides at once.
 ***********************************************************************************************************************************/
 #ifndef COMMAND_ARCHIVE_COMMON_H
 #define COMMAND_ARCHIVE_COMMON_H

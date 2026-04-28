@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Storage List
+
+Compact representation of a directory listing returned by a backend. Backed by a Blob (string slab) plus a pooled owner list to
+deduplicate user/group strings -- on a repo with millions of files at detail level, this saves tens of MB versus naive StorageInfo
+copies. Each StorageInfoLevel uses progressively more of the StorageListInfo struct; storageLstInfoSize selects the actual byte
+count so unused tail fields don't bloat the entries.
 ***********************************************************************************************************************************/
 #include <build.h>
 

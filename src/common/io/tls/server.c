@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 TLS Server
+
+Listening side of the TLS layer used by pgxbackup server commands (the receiving end of the remote/local protocol). Builds an
+SSL_CTX seeded with hardcoded 2048-bit DH parameters and a NIST P-256 ECDH curve for forward secrecy on TLS 1.2 and earlier
+ephemeral key exchanges. Client certificate verification is opt-in and engaged only when caFile is provided to tlsServerNew(); when
+no CA is configured the server still accepts connections but does not authenticate clients.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -306,7 +311,11 @@ tlsServerNew(
         // Set callback to free context
         memContextCallbackSet(objMemContext(this), tlsServerFreeResource, this);
 
-        // Set options
+        // Set options.
+        // SECURITY NOTE: This block hardens the server-side handshake. SSL_OP_CIPHER_SERVER_PREFERENCE keeps a malicious client
+        // from steering us toward a weak cipher we happen to also support. Renegotiation and session tickets/caching are all
+        // disabled to remove the easiest cross-connection state-confusion vectors; resumption costs us nothing here because the
+        // server connection count is small (one per worker).
         SSL_CTX_set_options(
             this->context,
             // Let server set cipher order
@@ -349,6 +358,10 @@ tlsServerNew(
             // Always ask for SSL client cert, but don't fail when not presented. In this case the server will disconnect after
             // sending a data end message to the client. The client can use this to verify that the server is running without the
             // need to authenticate.
+            // INVARIANT: SSL_VERIFY_PEER without SSL_VERIFY_FAIL_IF_NO_PEER_CERT means OpenSSL will not abort the handshake if the
+            // client sends no cert; instead, tlsServerAuth() inspects SSL_get_peer_certificate() post-handshake and only marks
+            // the IoSession authenticated when a cert was actually presented. Anything that consumes the session must check
+            // ioSessionAuthenticated() before trusting the peer.
             SSL_CTX_set_verify(this->context, SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE, NULL);                      // {vm_covered}
 
             // Set a flag so the client cert will be checked later

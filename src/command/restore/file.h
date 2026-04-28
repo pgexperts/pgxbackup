@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Restore File
+
+Per-file restore logic invoked from the local worker. Decides whether each file can be preserved (delta), zeroed (selective
+restore), or copied; for block-incremental files it uses the BlockDelta machinery to fetch only the super blocks containing
+changed blocks instead of the whole file.
 ***********************************************************************************************************************************/
 #ifndef COMMAND_RESTORE_FILE_H
 #define COMMAND_RESTORE_FILE_H

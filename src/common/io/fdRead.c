@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 File Descriptor Io Read
+
+IoRead driver backed by a POSIX file descriptor. read(2) returning 0 is treated as EOF and is sticky: once eof is set, subsequent
+calls return zero bytes without touching the descriptor.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -82,7 +85,8 @@ ioFdRead(THIS_VOID, Buffer *const buffer, const bool block)
 
     ssize_t actualBytes = 0;
 
-    // If blocking keep reading until buffer is full or eof
+    // If blocking keep reading until buffer is full or eof. ioFdReadReady() is called *before* each read(2) so that a slow peer
+    // produces a clear FileReadError ("timeout after Nms") rather than blocking the process indefinitely on a misbehaving fd.
     if (!this->eof)
     {
         do

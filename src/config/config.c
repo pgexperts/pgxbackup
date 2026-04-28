@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Command and Option Configuration
+
+Singleton store for the active configuration. cfgInit() is the only entry point that mutates the global -- it takes a Config
+fully built by config/parse.c (cfgParseP), frees any previous configuration's mem context, and reparents the new context onto
+memContextTop() so it persists for the rest of the program. Every cfgOption* and cfgCommand* accessor in this file reads from
+configLocal under an ASSERT(cfgInited()) so accidental access before cfgLoad() fails immediately.
 ***********************************************************************************************************************************/
 #include <build.h>
 

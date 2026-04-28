@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Manifest Command
+
+Renders a backup manifest as JSON for inspection. The implementation also walks the block-incremental block map (when present)
+to expand which prior backup each block of a file actually came from, since that information is not directly visible from the
+manifest alone but is needed to understand the dependency graph of an incremental backup.
 ***********************************************************************************************************************************/
 #include <build.h>
 

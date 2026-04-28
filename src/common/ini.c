@@ -1,5 +1,17 @@
 /***********************************************************************************************************************************
 Ini Handler
+
+Streaming parser for the INI dialect used by pgBackRest's on-disk metadata (backup.info, archive.info, backup.manifest, ...).
+Two flavors are supported via the `strict` flag:
+
+- strict=true (file-on-disk format): every value must be valid JSON, no leading whitespace is trimmed, and `#` is *not* a comment
+  character. Section lines must be exactly "[name]" with no trailing space. Because '=' may appear inside a quoted JSON key, the
+  parser uses a retry-on-JSON-parse-error trick to find the real key/value separator: try the first '=', if the suffix is not
+  valid JSON look for the next '=', and so on. This is unusual and is mandatory -- pgBackRest's manifest keys can contain '='.
+- strict=false (loose config format): '#' starts a comment, lines are trimmed, sections need only start with '['.
+
+Either way, key/value lines outside any section are an error and zero-length keys are an error. The IniValue returned by
+iniValueNext() is reused between calls -- callers that need a value to outlive the next call must dup it.
 ***********************************************************************************************************************************/
 #include <build.h>
 

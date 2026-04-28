@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Support Command
+
+Builds a JSON-formatted dump of the resolved configuration (option name, current value, source -- env/config/cmdline/default)
+plus selected runtime context. Intended for inclusion in support tickets so the author can see what the user's pgBackRest
+actually saw without asking them to manually transcribe pgxbackup.conf and the relevant environment variables.
 ***********************************************************************************************************************************/
 #include <build.h>
 

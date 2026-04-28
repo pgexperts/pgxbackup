@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 String List Handler
+
+A typed wrapper over List that stores String *. The list owns each String — strLstAdd duplicates the input, and strLstFree (via
+List) frees the entire memory context including all child strings. The default comparator is lstComparatorStr so sort and find work
+without extra setup.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -349,6 +353,8 @@ strLstJoinQuote(const StringList *const this, const char *const separator, const
 }
 
 /**********************************************************************************************************************************/
+// Linear merge: relies on both lists being sorted ascending. The header documents this requirement explicitly — calling with
+// unsorted input silently produces wrong results rather than asserting.
 FN_EXTERN StringList *
 strLstMergeAnti(const StringList *const this, const StringList *const anti)
 {

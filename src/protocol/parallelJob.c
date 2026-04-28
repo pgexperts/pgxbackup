@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Protocol Parallel Job
+
+Container that travels with a unit of parallel work through three states: pending (created by the caller's job-source callback)
+-> running (assigned to a client and request sent) -> done (response received). protocolParallelJobStateSet enforces forward-only
+transitions; an attempt to skip a state or go backwards throws an AssertError, which is the project's convention for "the
+internal invariant just broke -- stop now rather than continue with corrupted state."
 ***********************************************************************************************************************************/
 #include <build.h>
 

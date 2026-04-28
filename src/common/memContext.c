@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Memory Context Manager
+
+Implements the arena allocator described in memContext.h. Each context is laid out as a single allocation: the MemContext header,
+the optional caller-provided allocExtra block, and zero-or-one of MemContextChild{One,Many}, MemContextAlloc{One,Many}, and
+MemContextCallbackOne, in that order. The childQty/allocQty/callbackQty bitfields select the layout via memContextSizePossible[]
+so that leaf contexts (which the comment on MEM_CONTEXT_INITIAL_SIZE notes are the common case) cost only the bytes they need.
+
+The module also installs a handler with errorHandlerSet so that on a thrown error any New-state contexts on memContextStack with
+tryDepth >= the throwing TRY are freed automatically; this is what makes MEM_CONTEXT_TEMP_BEGIN exception-safe.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -218,6 +226,11 @@ typedef enum
 
 /***********************************************************************************************************************************
 Mem context stack used to pop mem contexts and cleanup after an error
+
+Two indices are tracked: memContextCurrentStackIdx points at the currently-active context (the target for memNew()), and
+memContextMaxStackIdx points at the most recently pushed entry of any kind. They diverge when New entries (which cannot be
+switched into directly) sit above Switch entries; memContextSwitchBack/Pop walks past New entries to find the next valid Switch.
+The tryDepth captured on push is what memContextClean uses to decide which entries to free on a thrown error.
 ***********************************************************************************************************************************/
 #define MEM_CONTEXT_STACK_MAX                                       128
 
@@ -1201,6 +1214,10 @@ memContextSize(const MemContext *const this)
 #endif // DEBUG
 
 /**********************************************************************************************************************************/
+// Registered with errorHandlerSet during init -- invoked once from errorInternalCatch() the first time control enters the catch
+// state for a given throw. Walks the mem context stack down to the depth of the catching TRY: New-type entries are freed (their
+// owners abandoned them), Switch-type entries simply have the active context restored. Must run before any user code in the catch
+// body, since otherwise that code would still be operating in a stale current context.
 FN_EXTERN void
 memContextClean(const unsigned int tryDepth, const bool fatal)
 {
@@ -1401,7 +1418,9 @@ memContextFree(MemContext *const this)
     ASSERT(this != NULL);
     ASSERT(this->active);
 
-    // Execute callbacks
+    // Two-pass tear-down: recurse the tree to fire user callbacks first (they may still need to read the memory we are about to
+    // free), then recurse again to actually free. The TRY/FINALLY ensures the second pass runs even if a callback throws so we
+    // don't leak the entire subtree on a misbehaving destructor.
     TRY_BEGIN()
     {
         memContextCallbackRecurse(this);

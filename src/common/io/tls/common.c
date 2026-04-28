@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 TLS Common
+
+Shared TLS context construction, certificate/key loading, and helpers for ASN.1 string handling. tlsContext() builds the SSL_CTX
+that both client and server flows use; tlsInit() seeds the optional cipher allow-lists at startup. Certificate name handling here
+deliberately rejects embedded NULs (CVE-2009-4034 class) because OpenSSL hands back ASN.1 octet strings, not C strings.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -142,7 +146,8 @@ tlsCertKeyLoad(SSL_CTX *const context, const String *const certFile, const Strin
                 SSL_CTX_use_certificate_chain_file(context, strZ(certFile)) != 1,
                 zNewFmt("unable to load cert file '%s'", strZ(certFile)));
 
-            // Check that key has the correct permissions
+            // Check that key has the correct permissions. This is enforced before SSL_CTX_use_PrivateKey_file() so we fail fast
+            // with a clear message rather than passing a world-readable key into OpenSSL.
             const StorageInfo keyInfo = storageInfoP(
                 storagePosixNewP(FSLASH_STR), keyFile, .ignoreMissing = true, .followLink = true);
 
@@ -222,6 +227,8 @@ tlsContext(const bool verifyPeer)
 
     // Select the TLS method to use. To maintain compatibility with older versions of OpenSSL we need to use an SSL method, but
     // SSL versions will be excluded in SSL_CTX_set_options().
+    // Note: SSLv23_method() is the modern "version-flexible" method despite the legacy name; SSLv2/v3 are disabled implicitly by
+    // OpenSSL itself and again explicitly when verifyPeer raises the floor to TLS 1.2 below.
     const SSL_METHOD *const method = SSLv23_method();
     cryptoError(method == NULL, "unable to load TLS method");
 
@@ -229,19 +236,26 @@ tlsContext(const bool verifyPeer)
     SSL_CTX *const result = SSL_CTX_new(method);
     cryptoError(result == NULL, "unable to create TLS context");
 
-    // Disable compression
+    // Disable compression. TLS-level compression enables CRIME-class attacks against authenticated cookies/headers and provides
+    // little real benefit on top of pgxbackup's own compression filters.
     SSL_CTX_set_options(result, SSL_OP_NO_COMPRESSION);
 
-    // Disable auto-retry to prevent SSL_read() from hanging
+    // Disable auto-retry to prevent SSL_read() from hanging. With auto-retry enabled, SSL_read() can silently spin waiting for a
+    // full TLS record on a non-blocking socket; we want WANT_READ to surface so tlsSession can apply its own timeout via the
+    // underlying ioRead.
     SSL_CTX_clear_mode(result, SSL_MODE_AUTO_RETRY);
 
-    // Enhance security when verifyPeer is enabled
+    // Enhance security when verifyPeer is enabled.
+    // SECURITY NOTE: Both the TLS minimum protocol version AND the cipher allow-lists are only enforced inside this `if` block. A
+    // caller that builds a context with verifyPeer=false (e.g. self-signed test setups) gets OpenSSL's compile-time defaults for
+    // protocol floor and ciphers. Be aware of this if/when wiring up new callers.
     if (verifyPeer)
     {
         // Set minimum TLS version to 1.2
         cryptoError(SSL_CTX_set_min_proto_version(result, TLS1_2_VERSION) != 1, "unable to set minumum TLS version to 1.2");
 
-        // Set allowed ciphers for TLSv1.2 when configured
+        // Set allowed ciphers for TLSv1.2 when configured. TLS 1.2 and 1.3 use different OpenSSL APIs — set_cipher_list() applies
+        // only to <=1.2; set_ciphersuites() applies only to 1.3 — so both must be configured to fully constrain the handshake.
         if (tlsCommonLocal.tlsCipher12 != NULL)
             cryptoError(SSL_CTX_set_cipher_list(result, strZ(tlsCommonLocal.tlsCipher12)) != 1, "unable to set TLSv1.2 ciphers");
 

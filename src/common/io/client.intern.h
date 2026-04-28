@@ -1,5 +1,8 @@
 /***********************************************************************************************************************************
 Io Client Interface Internal
+
+Vtable that protocol-specific client drivers (socket, TLS) populate. The toLog callback is required so debug logging can render
+the driver's internal state without the IO layer needing to know what kind of client it is.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_CLIENT_INTERN_H
 #define COMMON_IO_CLIENT_INTERN_H

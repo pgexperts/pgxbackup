@@ -1,5 +1,15 @@
 /***********************************************************************************************************************************
 Backup File
+
+Worker-side per-file copy. Runs inside a forked local process (or remote via the protocol layer). For each file in the batch this
+makes two passes: pass one decides the BackupCopyResult (Copy/Checksum/NoOp/Skip/Truncate) by hashing the pg-side file (delta
+mode) and the repo-side prior bytes (resume mode); pass two does the actual copy of files marked Copy, threading them through the
+configured filter pipeline (page-checksum, block-incremental, compress, encrypt, hash, size).
+
+Filter ordering matters: page checksum runs on raw page-aligned PG bytes, then block-incremental fragments the stream into blocks
+that get compressed/encrypted individually, then the post-filter hash captures the on-disk checksum. The pre-filter hash is the
+"PG-side" checksum stored in the manifest's checksumSha1; the post-filter hash is checksumRepoSha1, which lets verify confirm the
+stored bytes without decrypting/decompressing.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -196,7 +206,8 @@ backupFile(
                     // Setup pg file for read. Only read as many bytes as passed in pgFileSize. If the file is growing it does no
                     // good to copy data past the end of the size recorded in the manifest since those blocks will need to be
                     // replayed from WAL during recovery. pg_control requires special handling since it needs to be retried on crc
-                    // validation failure.
+                    // validation failure -- pgControlBufferFromFile() loops until it gets a checksum-valid read, so it is safe
+                    // to embed in the IO buffer here without further retry logic.
                     bool repoChecksum = false;
                     IoRead *readIo;
 

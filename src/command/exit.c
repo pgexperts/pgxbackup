@@ -1,5 +1,11 @@
 /***********************************************************************************************************************************
 Exit Routines
+
+Centralized cleanup path for normal and abnormal command termination. exitInit() installs handlers for SIGHUP/SIGINT/SIGTERM
+that translate the signal into a TermError and into the same exit path used by errors. SIGPIPE is ignored because the protocol
+layer needs to detect EPIPE on writes and convert that into a structured error. exitSafe() is the only function that should be
+called at the end of main(): it logs the error (with stack trace at debug level), formats the cmdEnd message, and releases any
+held command lock. Lock release errors are deliberately swallowed to avoid masking the original exit cause.
 ***********************************************************************************************************************************/
 #include <build.h>
 

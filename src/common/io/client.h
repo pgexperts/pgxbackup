@@ -3,6 +3,9 @@ Io Client Interface
 
 Create sessions for protocol clients. For example, a TLS client can be created with tlsClientNewP() and then new TLS sessions can be
 opened with ioClientOpen().
+
+IoClient is the connection *factory*; IoSession is one connection. A client is configured once (host, port, credentials, TLS
+context) and then opens sessions on demand. Drivers live under common/io/socket and common/io/tls.
 ***********************************************************************************************************************************/
 #ifndef COMMON_IO_CLIENT_H
 #define COMMON_IO_CLIENT_H

@@ -1,7 +1,9 @@
 /***********************************************************************************************************************************
 Error Handler
 
-Implement a try ... catch ... finally error handler.
+Implement a try ... catch ... finally error handler. The implementation is built on setjmp()/longjmp() so it is C99-portable; this
+imposes the volatile/clobber discipline noted below and makes it unsafe to return from any of the macro blocks (the active jump
+buffer would be popped without notifying the error machinery).
 
 TRY_BEGIN()
 {
@@ -121,7 +123,10 @@ Try stack getters/setters
 // Get the depth of the current try statement (0 if none)
 FN_EXTERN unsigned int errorTryDepth(void);
 
-// Add a handler to be called when an error occurs
+// Add a handler to be called when an error occurs. Each handler receives (tryDepth, fatal) and is invoked once per CATCH on entry
+// to the error state, in registration order. memContext.c and stackTrace.c install handlers here so their per-try state is unwound
+// when an exception is caught -- errorHandlerSet must be called before any code that creates contexts or pushes stack frames in a
+// try block, or those allocations will leak on error.
 typedef void (*const ErrorHandlerFunction)(unsigned int, bool);
 
 FN_EXTERN void errorHandlerSet(const ErrorHandlerFunction *list, unsigned int total);
@@ -306,7 +311,9 @@ Rethrow the current error
 /***********************************************************************************************************************************
 Internal functions
 
-These functions are used by the macros to implement the error handler and should never be called independently.
+These functions are used by the macros to implement the error handler and should never be called independently. The TRY_BEGIN()
+macro pairs errorInternalTryBegin() with setjmp(*errorInternalJump()); a subsequent THROW longjmp's back into that frame, which is
+why no caller should return out of a TRY/CATCH/FINALLY block.
 ***********************************************************************************************************************************/
 // Begin the try block
 FN_EXTERN void errorInternalTryBegin(const char *fileName, const char *functionName, int fileLine);

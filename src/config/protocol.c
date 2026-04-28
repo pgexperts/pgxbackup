@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 Configuration Protocol Handler
+
+Lets a main process query option values from a remote worker. Used when a local config knows neither the cipher-pass nor
+cipher-type for a remote repo and needs to learn them from the remote (which read its own pgxbackup.conf). The protocol
+command is "opt-g" (PROTOCOL_COMMAND_CONFIG_OPTION); the request packs option names, the response packs the corresponding
+JSON-serialized values.
 ***********************************************************************************************************************************/
 #include <build.h>
 

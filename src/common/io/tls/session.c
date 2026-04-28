@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 TLS Session
+
+Drives an OpenSSL SSL * over an underlying IoSession (typically a socket). The constructor performs the SSL_connect / SSL_accept
+handshake before returning, so a successfully constructed TlsSession is already usable for I/O. tlsSessionResult() centralizes the
+WANT_READ / WANT_WRITE / ZERO_RETURN / unexpected-EOF mapping so callers can write linear code.
+
+The OpenSSL error queue is THREAD-LOCAL and globally shared across the process; ERR_clear_error() is called before every
+SSL_read/SSL_write/SSL_connect/SSL_accept so that ERR_get_error() in the error path actually returns the error from THIS call and
+not stale debris left behind by something earlier in the program.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -142,12 +150,18 @@ tlsSessionResultProcess(
         // Handle graceful termination by the server or unexpected EOF/error
         default:
         {
-            // Close connection on graceful termination by the server or unexpected EOF/error when allowed
+            // Close connection on graceful termination by the server or unexpected EOF/error when allowed.
+            // SSL_ERROR_ZERO_RETURN: peer sent close_notify (clean TLS shutdown).
+            // ignoreUnexpectedEof: a higher layer (HTTP response with content-length or self-validating body) opted in to
+            // tolerating a TCP FIN without close_notify, because it can detect a short read on its own. Keep this opt-in narrow:
+            // accepting unexpected EOF without independent length validation lets a network-level attacker truncate responses.
             if (errorTls == SSL_ERROR_ZERO_RETURN || this->ignoreUnexpectedEof)
             {
                 if (!closeOk)
                     THROW(ProtocolError, "unexpected TLS eof");
 
+                // Peer already terminated, so suppress our SSL_shutdown(); writing close_notify on a half-closed socket is
+                // pointless and can surface a confusing secondary error.
                 this->shutdownOnClose = false;
                 tlsSessionClose(this);
             }
@@ -219,7 +233,8 @@ tlsSessionRead(THIS_VOID, Buffer *const buffer, const bool block)
     // If blocking read keep reading until buffer is full
     do
     {
-        // If no TLS data pending then check the io to reduce blocking
+        // If no TLS data pending then check the io to reduce blocking. SSL_pending() reports already-decrypted bytes available
+        // for SSL_read() without a syscall; only when the buffer is empty do we need to wait for the underlying socket.
         if (!SSL_pending(this->session))
             ioReadReadyP(ioSessionIoReadP(this->ioSession), .error = true);
 
@@ -379,6 +394,10 @@ tlsSessionNew(SSL *const session, IoSession *const ioSession, const TimeMSec tim
         cryptoError(SSL_set_fd(this->session, ioSessionFd(this->ioSession)) != 1, "unable to add fd to TLS session");
 
         // Negotiate TLS session. The error queue must be cleared before this operation.
+        // ORDERING: any per-session SSL state that must influence the handshake (notably SNI via SSL_set_tlsext_host_name in the
+        // client path) MUST already be set on `session` by the caller before tlsSessionNew runs, since we begin SSL_connect on
+        // the very next line. tlsSessionResult returns 0 for WANT_READ/WANT_WRITE so the handshake spins until complete or
+        // erroring.
         int result = 0;
 
         while (result == 0)

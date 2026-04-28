@@ -1,5 +1,10 @@
 /***********************************************************************************************************************************
 S3 Storage File Write
+
+Buffers output up to partSize, then either uploads as a single PUT (small file fits in one part) or starts an S3 multipart
+upload and uploads parts asynchronously while the next part fills. STORAGE_S3_SPLIT_DEFAULT/MAX implement an ascending part-size
+schedule via storageWriteChunkSize so very large files can stay under S3's 10000-parts-per-upload limit. On close the multipart
+upload is finalized with a CompleteMultipartUpload XML payload listing each part's ETag.
 ***********************************************************************************************************************************/
 #include <build.h>
 

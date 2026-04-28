@@ -1,5 +1,13 @@
 /***********************************************************************************************************************************
 Archive Segment Find
+
+Two-mode WAL lookup. Single mode hits storage with a tight regex (cheap one-shot lookup, e.g. archive-get for one segment).
+Multi-segment mode caches the directory listing per 16-segment prefix and consumes matches in sorted order, so a contiguous
+range can be resolved with one storageListP() per prefix instead of one per segment -- meaningful on object stores where the
+listing latency dominates.
+
+Both modes treat "more than one match for the same segment" as an unrecoverable ArchiveDuplicateError. The duplicate WAL case
+typically means two primaries are archiving to the same stanza (split brain), and choosing one would silently corrupt restores.
 ***********************************************************************************************************************************/
 #include <build.h>
 

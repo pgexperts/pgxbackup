@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 Convert C Types
+
+Scalar parsing and formatting routines used by the rest of the type system (String, Variant, Pack) and by config option handling.
+The integer parsers wrap strto*() with strict validation: any leading whitespace, trailing characters, or errno set after the call
+is treated as a parse error rather than a partial result.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -240,7 +244,8 @@ cvtPctToUInt(const uint64_t dividend, const uint64_t divisor)
 
     ASSERT(dividend <= divisor);
 
-    // If 100% then return a fixed value to avoid any rounding throwing off the result
+    // 100% is special-cased to avoid floating-point rounding producing 99.99 or 100.01. Returning the exact value 10000 here
+    // means downstream display code can rely on "100.00%" being literal.
     if (dividend == divisor)
         FUNCTION_TEST_RETURN(UINT, 10000);
 
@@ -559,6 +564,8 @@ cvtTimeToZ(const char *const format, const time_t value, char *const buffer, con
     ASSERT(buffer != NULL);
     // Musl libc does not behave like other C libraries when formatting %s as output from gmtime_r() so forbid it entirely, see
     // https://www.openwall.com/lists/musl/2025/06/02/3 for details.
+    // Tests run on multiple libcs (glibc, musl on Alpine) so this assertion catches platform-specific divergence at call time
+    // rather than producing wrong epoch values silently.
     ASSERT(!param.utc || strstr(format, "%s") == NULL);
 
     struct tm timePart;
@@ -665,7 +672,9 @@ cvtZToTime(const char *const time)
 
     // If no timezone was specified then use the current timezone. Set tm_isdst to -1 to force mktime to consider if DST. For
     // example, if system time is America/New_York then 2019-09-14 20:02:49 was a time in DST so the Epoch value should be
-    // 1568505769 (and not 1568509369 which would be 2019-09-14 21:02:49 - an hour too late).
+    // 1568505769 (and not 1568509369 which would be 2019-09-14 21:02:49 - an hour too late). NOTE: this branch is locale-sensitive
+    // — converting the same string on hosts with different TZ settings will yield different epoch values. Callers that need a
+    // stable result must include a timezone offset in the input.
     struct tm timePart =
     {
         .tm_year = year - 1900,
@@ -834,7 +843,8 @@ cvtUInt64ToVarInt128(uint64_t value, uint8_t *const buffer, size_t *const buffer
     ASSERT(bufferPos != NULL);
     ASSERT(bufferSize > *bufferPos);
 
-    // Keep encoding bytes while the remaining value is greater than 7 bits
+    // Standard base-128 varint (continuation bit pattern). A 64-bit value takes at most 10 bytes — see CVT_VARINT128_BUFFER_SIZE
+    // in convert.h. The decoder loop in cvtUInt64FromVarInt128() relies on that bound to detect malformed input.
     while (value >= 0x80)
     {
         // Encode the lower order 7 bits, adding the continuation bit to indicate there is more data

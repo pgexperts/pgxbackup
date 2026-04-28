@@ -1,5 +1,9 @@
 /***********************************************************************************************************************************
 File Descriptor Functions
+
+Wraps poll() with EINTR-safe retry against an absolute deadline. The retry helper deliberately initializes (result, errNo) to look
+like a retryable EINTR so the first iteration always runs the poll() at least once -- there is no clean way to fault-inject an
+interrupt in a unit test, so this also keeps that branch covered.
 ***********************************************************************************************************************************/
 #include <build.h>
 

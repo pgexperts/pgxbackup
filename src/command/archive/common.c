@@ -1,5 +1,16 @@
 /***********************************************************************************************************************************
 Archive Common
+
+Status-file invariants for async archive mode:
+
+  spool/<mode>/SEGMENT             - the segment payload (in for archive-get, out for archive-push intermediate state)
+  spool/<mode>/SEGMENT.ok          - async worker succeeded for this segment (may carry a non-empty body if there were warnings)
+  spool/<mode>/SEGMENT.error       - async worker failed for this segment; body is "code\nmessage"
+  spool/<mode>/global.error        - failure that affects all segments in this batch
+
+The foreground archive_command/restore_command process polls for SEGMENT.ok / SEGMENT.error / global.error to decide its exit
+status. The async worker writes one of these for every segment it was asked to process. archiveAsyncErrorClear() is called BEFORE
+the async worker is forked so a stale error file from a previous run cannot satisfy the next foreground poll prematurely.
 ***********************************************************************************************************************************/
 #include <build.h>
 

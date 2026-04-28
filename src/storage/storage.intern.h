@@ -9,6 +9,15 @@ required functions.
 
 The behavior of required functions is further modified by storage features defined by the StorageFeature enum. Details are included
 in the description of each function.
+
+Driver authoring contract:
+  - Required vtable slots: info, list, newRead, newWrite, pathRemove, remove. Construction will assert if any are NULL.
+  - Optional slots: linkCreate (only if symlink/hardlink features are advertised), move, pathCreate, pathSync. POSIX/CIFS are the
+    only drivers that currently fully populate the optional slots; object-store drivers leave most NULL because their underlying
+    APIs don't have analogues for path-as-entity, atomic move, or fsync.
+  - The driver does its own work in its mem context; the wrapper Storage object owns the driver via objMoveToInterface and
+    forwards calls through STORAGE_COMMON_INTERFACE(). Drivers must use STORAGE_COMMON_MEMBER as their first struct member so the
+    common-cast macros work.
 ***********************************************************************************************************************************/
 #ifndef STORAGE_STORAGE_INTERN_H
 #define STORAGE_STORAGE_INTERN_H

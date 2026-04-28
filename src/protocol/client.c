@@ -1,5 +1,12 @@
 /***********************************************************************************************************************************
 Protocol Client
+
+Client side of the binary pack-format protocol. The wire is a half-duplex stream: client writes a request, server writes one
+response (or one error). Multiple "sessions" can be multiplexed over the same connection -- each request carries a session id
+and the client demultiplexes responses arriving for sessions other than the one currently waiting (those go into the target
+session's stored slot for later retrieval). State (idle/request/response) is asserted on each transition so a protocol bug
+fails loudly rather than silently corrupting the stream. See client.h for the three usage patterns (sync, sync session, async
+session) -- async permits at most one outstanding request per session.
 ***********************************************************************************************************************************/
 #include <build.h>
 
@@ -235,6 +242,8 @@ protocolClientResponseInternal(ProtocolClientSession *const this)
 
             // If this response is for another session then store it with that session. Session id 0 indicates a fatal error on the
             // server that should be reported by the first session that sees it.
+            // CHECK below enforces the "one outstanding response" invariant on the target session -- if the server has already
+            // queued a result there and we're about to overwrite it, the protocol has gone out of sync.
             ASSERT(sessionId != 0 || type == protocolMessageTypeError);
 
             if (sessionId != 0 && sessionId != this->sessionId)
@@ -340,7 +349,9 @@ protocolClientNew(const String *const name, const String *const service, IoRead 
             .sessionList = lstNewP(sizeof(ProtocolClientSession)),
         };
 
-        // Read, parse, and check the protocol greeting
+        // Read, parse, and check the protocol greeting. The greeting is sent line-delimited JSON (the only JSON in the otherwise
+        // pack-format protocol) so it can be inspected/version-mismatch-detected before pack framing begins. A version mismatch
+        // here is the most common cause of unexplained connection failures, so the hint message specifically calls it out.
         MEM_CONTEXT_TEMP_BEGIN()
         {
             JsonRead *const greeting = jsonReadNew(ioReadLine(this->pub.read));

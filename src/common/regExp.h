@@ -1,5 +1,7 @@
 /***********************************************************************************************************************************
 Regular Expression Handler
+
+Wraps POSIX regex.h (extended syntax). Not PCRE: no lookaround or PCRE-style shortcut classes.
 ***********************************************************************************************************************************/
 #ifndef COMMON_REGEXP_H
 #define COMMON_REGEXP_H
