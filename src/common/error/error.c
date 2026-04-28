@@ -401,8 +401,10 @@ errorInternalThrow(
     // If a stack trace was provided
     if (stackTrace != NULL)
     {
+        // strncpy does not null-terminate when src length >= n, so we force termination on stackTraceBuffer (not messageBuffer:
+        // a long-standing copy-paste bug fixed here -- see docs/reviews/review-20260427-193815.md).
         strncpy(stackTraceBuffer, stackTrace, sizeof(stackTraceBuffer) - 1);
-        messageBuffer[sizeof(stackTraceBuffer) - 1] = '\0';
+        stackTraceBuffer[sizeof(stackTraceBuffer) - 1] = '\0';
     }
     // Else generate the stack trace for the error
     else if (
