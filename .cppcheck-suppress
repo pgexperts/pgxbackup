@@ -1,22 +1,16 @@
 # Project-curated cppcheck suppressions for pgxbackup.
-#
-# Each entry MUST have a comment immediately above explaining why the suppression is sound. Do not add suppressions to silence
-# real findings; if a finding is real, fix it (or use an inline `// cppcheck-suppress <id>` annotation at the call site if a
-# narrowly-scoped suppression is justified).
-#
-# Format: <check-id>[:<file>[:<line>]]
-# Bare check-id suppresses globally. Path-scoped suppression is preferred; global suppression should only be used when the
-# false-positive pattern is intrinsic to the codebase (e.g., a project-wide macro the checker cannot reason about).
+# Format: <check-id>[:<file>[:<line>]] -- one per line. Lines starting with # are comments.
+# Each suppression must have a rationale comment immediately above. Do not add suppressions to silence real findings; if a
+# finding is real, fix it (or use an inline `// cppcheck-suppress <id>` annotation at the call site).
 
-# cppcheck cannot see across the FUNCTION_TEST_BEGIN/FUNCTION_LOG_BEGIN/FUNCTION_TEST_VOID family of macros (declared in
-# src/common/debug.h). Each of those expands to a state-machine that declares a sentinel local FUNCTION_TEST_BEGIN_exists which
-# is consumed by the matching FUNCTION_TEST_RETURN/FUNCTION_LOG_RETURN macro -- but cppcheck only sees the declaration, not the
-# cross-macro consumption, and so reports `unassignedVariable` on the sentinel. The macro pattern frames hundreds of functions
-# across the codebase, so the suppression is global rather than path-scoped.
+# unassignedVariable (global): cppcheck cannot see across the FUNCTION_TEST_BEGIN / FUNCTION_LOG_BEGIN / FUNCTION_TEST_VOID
+# macro family declared in src/common/debug.h. Each macro expands to a state machine that declares a sentinel local
+# (FUNCTION_TEST_BEGIN_exists) consumed by the matching FUNCTION_TEST_RETURN / FUNCTION_LOG_RETURN. cppcheck only sees the
+# declaration, not the cross-macro consumption, so reports the sentinel as unassigned. The pattern frames hundreds of functions
+# across the codebase, so this suppression is global rather than path-scoped.
 unassignedVariable
 
-# manifest.c records a memory-context size before a loop and consumes it after the loop, both inside `#ifdef DEBUG_MEM` blocks.
-# cppcheck does not follow preprocessor branches and so reports `unreadVariable` on the assignment. The variable IS read in the
-# matching #ifdef DEBUG_MEM block further down. Real consumption verified at src/info/manifest/manifest.c (search for sizeBegin
-# inside DEBUG_MEM).
+# unreadVariable (one site): manifest.c records a memory-context size before a loop and consumes it after the loop, both inside
+# matching #ifdef DEBUG_MEM blocks. cppcheck does not follow preprocessor branches and so reports the assignment as dead. The
+# variable IS read in the matching DEBUG_MEM block further down -- search for sizeBegin in src/info/manifest/manifest.c.
 unreadVariable:src/info/manifest/manifest.c:247

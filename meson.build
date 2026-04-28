@@ -164,8 +164,12 @@ if cc.compiles('''int main(void) {__builtin_types_compatible_p(char *, const cha
     configuration.set('HAVE_BUILTIN_TYPES_COMPATIBLE_P', true, description: 'Is __builtin_types_compatible_p present?')
 endif
 
-# Find optional backtrace library
-lib_backtrace = cc.find_library('backtrace', required: false)
+# Find optional backtrace library. We require both the .so AND the header: on Ubuntu 24.04 (and similar) the libbacktrace static
+# library ships bundled with libgcc and is link-findable, but the header `backtrace.h` lives in gcc's private include path that
+# clang does not search by default. Without the has_headers check, clang-based builds (sanitizers, scan-build, clang-tidy) flip
+# HAVE_LIBBACKTRACE on at link-detect and then fail to compile common/stackTrace.c. Requiring the header makes the detection
+# match the actual usability and the configuration falls back cleanly when the header is absent.
+lib_backtrace = cc.find_library('backtrace', required: false, has_headers: 'backtrace.h')
 
 if lib_backtrace.found()
     configuration.set('HAVE_LIBBACKTRACE', true, description: 'Is libbacktrace present?')

@@ -55,6 +55,10 @@ jobs:
               \( -name '*.c' -o -name '*.h' -o -name '*.c.inc' \) \
               ! -name '*.vendor.*' \
               | xargs -I {} awk '
+                  # Single-line section divider (/*****...*****/) -- opens AND closes on the same line. Skip without entering
+                  # the block-tracking state so the scanner does not flag inline /* sequences in code that follows.
+                  /^\/\*\*\*\*\*.*\*\*\*\*\*\/$/ { next }
+                  # Multi-line block opener and closer (the project header convention with all-asterisk delimiter lines).
                   /^\/\*\*\*\*\*+/        { in_block=1; next }
                   /^\*\*\*\*\*+\// && in_block { in_block=0; next }
                   in_block && /\*\// { print FILENAME ":" NR " (premature */): " $0; bad=1 }
@@ -120,10 +124,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          # libbacktrace-dev is required (see sanitizers.yml for rationale -- the .so is autodetected, the header is not).
+          # See sanitizers.yml: meson.build soft-skips libbacktrace when the header is unavailable, so no extra install needed.
           DEBCONF_NONINTERACTIVE_SEEN=true DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
               build-essential clang clang-tools meson pkg-config \
-              libbacktrace-dev \
               libssl-dev zlib1g-dev libxml2-dev libpq-dev libyaml-dev \
               liblz4-dev libzstd-dev libbz2-dev libssh2-1-dev
 
@@ -167,10 +170,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          # libbacktrace-dev is required (see sanitizers.yml for rationale).
+          # See sanitizers.yml: meson.build soft-skips libbacktrace when the header is unavailable, so no extra install needed.
           DEBCONF_NONINTERACTIVE_SEEN=true DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
               build-essential clang clang-tidy meson pkg-config \
-              libbacktrace-dev \
               libssl-dev zlib1g-dev libxml2-dev libpq-dev libyaml-dev \
               liblz4-dev libzstd-dev libbz2-dev libssh2-1-dev jq
 

@@ -70,6 +70,15 @@ jobs:
           EXEMPT = {
               # Top-level dispatcher; exercised end-to-end by integration tests. No isolated unit-test surface.
               "main.c",
+              # 'manifest' display command (prints backup-manifest contents to stdout). Exercised by the 'manifest' test
+              # at test/define.yaml:981 which uses include: rather than coverage: -- the test compiles the command source
+              # into the test binary but does not assert per-line coverage. Promote to coverage: when isolated unit tests
+              # for the manifest command are added.
+              "command/manifest/manifest.c",
+              # Process-fork-and-exec helper. Exercised indirectly by every test that spawns a worker (most of the suite),
+              # and directly by integration tests that drive the protocol layer. No isolated unit test asserts coverage on
+              # this module specifically. Promote to coverage: when a dedicated common/exec test module is added.
+              "common/exec.c",
           }
 
           # Files in src/ that are NOT covered by tests. Any C file here that isn't EXEMPT and isn't in some `coverage:` list fails.
