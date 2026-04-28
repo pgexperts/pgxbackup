@@ -14,3 +14,9 @@ unassignedVariable
 # matching #ifdef DEBUG_MEM blocks. cppcheck does not follow preprocessor branches and so reports the assignment as dead. The
 # variable IS read in the matching DEBUG_MEM block further down -- search for sizeBegin in src/info/manifest/manifest.c.
 unreadVariable:src/info/manifest/manifest.c:247
+
+# nullPointerRedundantCheck (global): cppcheck cannot tell that FUNCTION_TEST_PARAM_P / FUNCTION_LOG_PARAM_P do NOT null-check
+# their argument -- they are conditional logging hooks that compile out in production builds. cppcheck's flow analysis treats
+# the macro as if it could short-circuit on a null parameter, then flags any subsequent pointer dereference as either redundant
+# (if the macro guards) or unsafe (if it doesn't). Same root cause as the unassignedVariable suppression above.
+nullPointerRedundantCheck

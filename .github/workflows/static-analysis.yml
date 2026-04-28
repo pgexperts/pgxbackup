@@ -191,21 +191,24 @@ jobs:
       # The tidy check set is in .clang-tidy at repo root; not duplicating it here.
       - name: Run clang-tidy
         run: |
-          cd "${GITHUB_WORKSPACE}"
+          # The paths in compile_commands.json are relative to the build dir (../pgbackrest/src/...). clang-tidy interprets file
+          # arguments relative to its CWD, so we must cd into the build dir before invoking it -- otherwise it tries to open
+          # `${GITHUB_WORKSPACE}/../pgbackrest/...` and fails with "no such file or directory".
+          cd "${GITHUB_WORKSPACE}/build"
           # Build a list of files to check from compile_commands.json, filtering to src/ only and excluding generated *.auto.* and
           # the build-code subtree (it's a separate executable that isn't part of the production binary's contract).
-          jq -r '.[].file' build/compile_commands.json \
+          jq -r '.[].file' compile_commands.json \
               | grep -E '/pgbackrest/src/' \
               | grep -v '/src/build/' \
               | grep -v '\.auto\.' \
               | sort -u > /tmp/tidy-files.txt
           echo "Will run clang-tidy on $(wc -l < /tmp/tidy-files.txt) files"
 
-          # -p points at the build dir so clang-tidy finds compile_commands.json.
+          # -p . points at the current directory (the build dir) so clang-tidy finds compile_commands.json there.
           # --warnings-as-errors='*' makes any check that fires a hard failure. The check set is conservative (.clang-tidy) so this
           # is the right default; broaden as the codebase converges.
           xargs -a /tmp/tidy-files.txt -n 50 -P "$(nproc)" \
               clang-tidy \
-                  -p build \
+                  -p . \
                   --warnings-as-errors='*' \
                   --quiet

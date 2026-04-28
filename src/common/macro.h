@@ -7,6 +7,8 @@ Portions Copyright (c) 1994, Regents of the University of California
 #ifndef COMMON_MACRO_H
 #define COMMON_MACRO_H
 
+#include <stddef.h>                                                 // offsetof, size_t
+
 /***********************************************************************************************************************************
 Convert the parameter to a zero-terminated string
 
@@ -83,9 +85,12 @@ Adapted from PostgreSQL src/include/c.h.
 /***********************************************************************************************************************************
 Determine the alignment of a data type
 
-This macro reduces to a constant so it is safe to use anywhere a constant is allowed, e.g. a switch statement case.
+This macro reduces to a constant so it is safe to use anywhere a constant is allowed, e.g. a switch statement case. The historical
+form was `((size_t)&((struct {char c; type t;}*)0)->t)`, which UBSan -- correctly per the C standard -- flags as undefined
+behavior because it accesses a member through a null pointer, even though every real-world compiler folds it to a constant. Using
+offsetof() against the same probe struct is the standard, UBSan-clean equivalent.
 ***********************************************************************************************************************************/
-#define ALIGN_OF(type) ((size_t)&((struct {char c; type t;} *)0)->t)
+#define ALIGN_OF(type) offsetof(struct {char c; type t;}, t)
 
 /***********************************************************************************************************************************
 Determine the byte offset required to align a type after an arbitrary number of bytes
