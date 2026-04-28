@@ -1,4 +1,12 @@
-# pgBackRest <br/> Reliable PostgreSQL Backup & Restore
+# pgxbackup <br/> Reliable PostgreSQL Backup & Restore
+
+## pgBackRest -> pgxbackup
+
+This project is a fork of pgBackRest. Before anything else, we would like to thank David Steele for his amazing work over the years in giving the community such a reliable and feature-rich backup solution for PostgreSQL.
+
+[PGX Inc.](https://pgexperts.com) is maintaining this fork as a continuity release for our clients. Anyone is welcome to use it, of course. We have not made any firm decisions this point as to feature enhancements; we will be focusing on bugs and PostgreSQL version compatibility.
+
+The original README.md for pgBackRest is maintained below.
 
 ## NOTICE OF OBSOLESCENCE
 

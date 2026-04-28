@@ -256,7 +256,7 @@ sub run
 
             my $strCommand =
                 ($strVm ne VM_NONE ? "docker exec -i -u ${\TEST_USER} ${strImage} bash -l -c '\\\n" : '') .
-                $self->{strTestPath} . "/build/${strVm}/test/src/test-pgbackrest" .
+                $self->{strTestPath} . "/build/${strVm}/test/src/test-pgxbackup" .
                     ' --repo-path=' . $self->{strTestPath} . '/repo' . ' --test-path=' . $self->{strTestPath} .
                     " --log-level=$self->{strLogLevel}" . ' --vm=' . $self->{oTest}->{&TEST_VM} .
                     (defined($self->{strVmArch}) ? ' --vm-arch=' . $self->{strVmArch} : '') .

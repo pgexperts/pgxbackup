@@ -498,7 +498,7 @@ eval
         ($bDryRun ? '' : " && \\\n${strBuildPath}/src/build-code error ${strBackRestBase}/src") .
         ($bDryRun ? '' : " && \\\n${strBuildPath}/src/build-code postgres-version ${strBackRestBase}/src") .
         " && \\\n${strBuildPath}/src/build-code postgres ${strBackRestBase}/src ${strRepoCachePath}" .
-        " && \\\nninja -C ${strBuildPath} test/src/test-pgbackrest 2>&1";
+        " && \\\nninja -C ${strBuildPath} test/src/test-pgxbackup 2>&1";
 
     if (!-e $strBuildNinja)
     {
@@ -654,8 +654,8 @@ eval
 
                     # Setup build if it does not exist
                     my $strBuildCommand =
-                        "ninja -C ${strBuildPath}" . ($bBinRequired ? ' src/pgbackrest' : '') .
-                        ($bUnitRequired ? ' test/src/test-pgbackrest' : '') .  ' 2>&1';
+                        "ninja -C ${strBuildPath}" . ($bBinRequired ? ' src/pgxbackup' : '') .
+                        ($bUnitRequired ? ' test/src/test-pgxbackup' : '') .  ' 2>&1';
 
                     if (!-e $strBuildNinja)
                     {
@@ -810,7 +810,7 @@ eval
         }
 
         my $oExec = new pgBackRestTest::Common::ExecuteTest(
-            "${strBuildPath}/test/src/test-pgbackrest --log-level=warn --vm=${strVm} --repo-path=${strBackRestBase}" .
+            "${strBuildPath}/test/src/test-pgxbackup --log-level=warn --vm=${strVm} --repo-path=${strBackRestBase}" .
             " --test-path=${strTestPath}" . ($bCoverageSummary ? ' --coverage-summary' : '') . " test${strModuleList}",
             {bShowOutputAsync => true, bSuppressError => true});
         $oExec->begin();
