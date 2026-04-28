@@ -1,4 +1,14 @@
-# pgBackRest <br/> Contributing to pgBackRest
+# pgxbackup <br/> Contributing
+
+> **Notice (2026):** This document is the upstream `pgbackrest/pgbackrest` contribution guide as it stood at the time of the
+> `pgxbackup` fork. Significant portions — branch model, PR base branch, sponsorship references, project boards — describe an
+> upstream that no longer exists. The text is preserved for historical reference and will be revised with `pgxbackup`-specific
+> contribution instructions in a future commit. Until that revision lands, treat anything below this notice with the understanding
+> that *the named branches, URLs, and processes refer to the upstream project and are not authoritative for `pgxbackup`*.
+>
+> If you want to contribute now, see `docs/ci.md` for the active CI strategy and the `main` branch is the working branch.
+
+---
 
 ## Table of Contents
 

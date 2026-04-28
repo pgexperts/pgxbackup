@@ -1,0 +1,83 @@
+# pgBackRest clang-tidy configuration.
+#
+# Curated check set for a C99 codebase. The cppcoreguidelines-* and modernize-* families are deliberately excluded — they target
+# C++ idioms that don't apply (smart pointers, range-for, auto). The bugprone-* and clang-analyzer-* families are the high-value
+# C-relevant checks.
+#
+# To broaden coverage incrementally, add families to Checks: one at a time and clean up findings before adding the next. Going
+# straight to '*' will produce thousands of warnings that bury real signal.
+#
+# Inline suppression: place `// NOLINT` or `// NOLINT(check-name)` on the offending line.
+# File-level suppression: use HeaderFilterRegex below or add an entry to .clang-tidy in the offending subdirectory.
+
+Checks: >
+  -*,
+  bugprone-assert-side-effect,
+  bugprone-bool-pointer-implicit-conversion,
+  bugprone-branch-clone,
+  bugprone-incorrect-roundings,
+  bugprone-integer-division,
+  bugprone-misplaced-widening-cast,
+  bugprone-multiple-statement-macro,
+  bugprone-not-null-terminated-result,
+  bugprone-posix-return,
+  bugprone-signed-char-misuse,
+  bugprone-sizeof-expression,
+  bugprone-string-integer-assignment,
+  bugprone-suspicious-memory-comparison,
+  bugprone-suspicious-memset-usage,
+  bugprone-suspicious-string-compare,
+  bugprone-too-small-loop-variable,
+  bugprone-undefined-memory-manipulation,
+  bugprone-unused-return-value,
+  cert-dcl03-c,
+  cert-err33-c,
+  cert-err34-c,
+  cert-flp30-c,
+  cert-msc24-c,
+  cert-msc30-c,
+  cert-msc32-c,
+  cert-msc33-c,
+  cert-msc50-c,
+  cert-msc51-c,
+  cert-pos44-c,
+  cert-str34-c,
+  clang-analyzer-core.*,
+  clang-analyzer-deadcode.*,
+  clang-analyzer-nullability.*,
+  clang-analyzer-optin.performance.*,
+  clang-analyzer-security.*,
+  clang-analyzer-unix.*,
+  misc-misplaced-const,
+  misc-redundant-expression,
+  misc-static-assert,
+  misc-unused-parameters,
+  performance-no-int-to-ptr,
+  readability-duplicate-include,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-preprocessor
+
+# Run checks only against files under src/. Tests, build-time codegen, and vendored code (xxhash) live elsewhere and have different
+# conventions — covering them would add noise without actionable signal.
+HeaderFilterRegex: '/src/(?!build/).*\.(h|c|c\.inc)$'
+
+# Treat all enabled checks as errors. The check set above is curated to be sound on this codebase; any new finding is a real
+# regression to investigate, not a stylistic suggestion.
+WarningsAsErrors: '*'
+
+# Project naming convention: variables are camelCase (lower first letter), types are CamelCase (upper first letter). Loop indices
+# end in `Idx` rather than being `i` / `j`. Encoded here so clang-tidy can enforce it if/when readability-identifier-naming is
+# added to Checks above. Today this section is dormant — present for future use.
+CheckOptions:
+  - key:   readability-identifier-naming.VariableCase
+    value: camelBack
+  - key:   readability-identifier-naming.TypedefCase
+    value: CamelCase
+  - key:   readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key:   readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  # Allow the project's exception: variadic-function macro names are intentionally lowercase (e.g., storagePathCreateP).
+  - key:   readability-identifier-naming.MacroDefinitionIgnoredRegexp
+    value: '^[a-z][a-zA-Z0-9]*P$'

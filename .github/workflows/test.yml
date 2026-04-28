@@ -1,14 +1,17 @@
 name: test
 
+# Triggers gate every push and PR against the working branch (`main`) plus the legacy CI-suffix patterns inherited from upstream
+# (`-ci`, `-cig`). The `eol` branch is intentionally NOT covered: it is the historical fork point and is treated as archival —
+# changes land on `main`. If a contributor wants CI on a feature branch without opening a PR, they can name it `whatever-ci`.
 on:
   push:
     branches:
-      - integration
+      - main
       - '**-ci'
       - '**-cig'
   pull_request:
     branches:
-      - integration
+      - main
       - '**-ci'
       - '**-cig'
 
@@ -61,7 +64,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           path: pgbackrest
 
@@ -81,7 +84,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           path: pgbackrest
 
@@ -105,7 +108,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           path: pgbackrest
 
@@ -134,7 +137,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Install
         run: brew install -q pkg-config openssl@3 libpq libxml2 libyaml meson
@@ -162,10 +165,10 @@ jobs:
           - version: '15.0'
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Run Test
-        uses: cross-platform-actions/action@v1.0.0
+        uses: cross-platform-actions/action@233156312992f3f169d8d0c633c21d12a5d30455  # v1.0.0
         with:
           operating_system: freebsd
           version: ${{matrix.os.version}}
@@ -180,7 +183,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           path: pgbackrest
 
@@ -196,7 +199,7 @@ jobs:
 
       - name: Check
         run: |
-          diff ${GITHUB_WORKSPACE?}/pgbackrest/.github/workflows/symbol.out <(nm -gj --defined-only build/src/pgbackrest)
+          diff ${GITHUB_WORKSPACE?}/pgbackrest/.github/workflows/symbol.out <(nm -gj --defined-only build/src/pgxbackup)
 
   # Check that code is correctly formatted
   code-format:
@@ -204,7 +207,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           path: pgbackrest
 

@@ -1,0 +1,134 @@
+name: sanitizers
+
+# AddressSanitizer + UndefinedBehaviorSanitizer build, run against deterministic smoke invocations of the binary. This is a first-line
+# detector for memory-safety and UB regressions. It deliberately does NOT replace the existing valgrind matrix in test.yml: ASan and
+# valgrind catch overlapping but distinct issues (ASan finds a much wider class of heap+stack errors at lower runtime overhead;
+# valgrind catches uninitialized-read paths ASan does not). They are run side-by-side.
+#
+# SCOPE TODAY: build with sanitizers enabled, then exercise the binary with a handful of CLI invocations that drive main.c, the
+# option parser, the help renderer, and the version path. This catches any sanitizer finding in code that runs during these flows.
+#
+# NOT YET COVERED: running the unit-test binary (test/src/test-pgxbackup) under sanitizers. The Perl test harness (test/test.pl)
+# hard-codes its meson setup string at test.pl:506 and test.pl:663, so wiring `-Db_sanitize=...` through the harness requires Perl
+# changes. See docs/ci.md for the planned follow-on. The smoke run still gives meaningful coverage of the foundational layers.
+
+on:
+  push:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+  pull_request:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+
+permissions:
+  contents: read
+
+# When a PR pushes a new commit, cancel the stale sanitizer run for the previous commit. Saves CI minutes; safe because each commit
+# is independently sanitizable.
+concurrency:
+  group: sanitizers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  asan-ubsan:
+    name: ASan + UBSan (clang)
+    runs-on: ubuntu-24.04
+
+    # Sanitizer binaries are typically 2-3x slower than release; keep the timeout generous but bounded.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          path: pgbackrest
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          DEBCONF_NONINTERACTIVE_SEEN=true DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
+              build-essential clang llvm meson pkg-config \
+              libssl-dev zlib1g-dev libxml2-dev libpq-dev libyaml-dev \
+              liblz4-dev libzstd-dev libbz2-dev libssh2-1-dev
+
+      # Use clang because its ASan/UBSan implementations are slightly more aggressive than gcc's and produce better diagnostics; gcc
+      # would also work but tooling expectations across the C ecosystem default to clang for sanitizer builds.
+      - name: Configure (ASan + UBSan)
+        env:
+          CC: clang
+          CXX: clang++
+          # b_sanitize=address,undefined turns on both. b_lundef=false is required because some sanitizer runtime symbols are
+          # resolved at link time against the dynamic loader rather than the static link.
+          # No -fno-sanitize-recover here: meson's default with b_sanitize is to recover from UB, which would silently mask findings
+          # in a CI run. We force halt-on-error via UBSAN_OPTIONS at runtime instead, which is equivalent and simpler than threading
+          # extra c_args through.
+          MESON_ARGS: >
+            -Dbuildtype=debug
+            -Dwerror=true
+            -Db_sanitize=address,undefined
+            -Db_lundef=false
+            -Doptimization=1
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          meson setup ${MESON_ARGS} build pgbackrest
+
+      - name: Build
+        run: ninja -vC "${GITHUB_WORKSPACE}/build"
+
+      # Sanitizer runtime configuration. Comments describe the *why* of each option since the names are opaque.
+      #   abort_on_error / halt_on_error=1: any finding terminates the process. CI's job is to fail loudly, not collect a report.
+      #   detect_leaks=1: LSan piggybacks on ASan; this catches missing memContextFree / unfreed allocations on exit paths.
+      #   detect_stack_use_after_return=1: catches the "returned pointer to a stack local" footgun. Default is off (slow); we accept
+      #     the cost for CI.
+      #   strict_string_checks=1: tightens str* checks (overlapping memcpy etc).
+      #   print_stacktrace=1: UBSan default omits stack frames; turn them on for actionable failures.
+      #   suppressions=...: empty for now. Add a path here when a known sanitizer issue must be allowlisted, e.g. setjmp/longjmp
+      #     interactions in error.c that are sound-by-design.
+      - name: Run smoke commands under sanitizers
+        env:
+          ASAN_OPTIONS: abort_on_error=1:detect_leaks=1:detect_stack_use_after_return=1:strict_string_checks=1:check_initialization_order=1:strict_init_order=1:print_stacktrace=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          LSAN_OPTIONS: detect_leaks=1
+        run: |
+          BIN="${GITHUB_WORKSPACE}/build/src/pgxbackup"
+
+          echo "::group::version"
+          "${BIN}" version
+          echo "::endgroup::"
+
+          echo "::group::help (top-level)"
+          "${BIN}" help
+          echo "::endgroup::"
+
+          # Each help-for-command path exercises a distinct chunk of the option-parse + help-render machinery. Cover commands that
+          # touch every major option group (storage, archive, backup, restore, repo).
+          for cmd in archive-get archive-push backup check expire info repo-get repo-ls repo-put repo-rm restore stanza-create stanza-delete stanza-upgrade verify; do
+              echo "::group::help ${cmd}"
+              "${BIN}" help "${cmd}"
+              echo "::endgroup::"
+          done
+
+          # An invalid invocation exercises the error path (which uses setjmp/longjmp). If ASan flags the longjmp interaction, we
+          # need to learn that here, not from a user.
+          echo "::group::error path (intentional bad invocation)"
+          if "${BIN}" --no-such-option 2>/dev/null; then
+              echo "FAIL: bad invocation should have errored but did not"
+              exit 1
+          fi
+          echo "::endgroup::"
+
+      # On any sanitizer failure, the build directory has the binary and any core dumps. Ship them for offline triage.
+      - name: Upload sanitizer artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: sanitizer-failure-${{ github.run_id }}
+          path: |
+            ${{ github.workspace }}/build/src/pgxbackup
+            ${{ github.workspace }}/build/meson-logs/
+          retention-days: 14
+          if-no-files-found: warn

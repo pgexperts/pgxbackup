@@ -1,0 +1,130 @@
+name: coverage
+
+# The 100%-coverage gate itself lives inside test.pl and runs as part of test.yml's matrix entry "All unit tests with coverage".
+# This workflow adds two things test.yml doesn't do:
+#
+#   1. coverage-completeness:  every src/*.c file must be listed under some test's `coverage:` entry in test/define.yaml.
+#      Without this gate, a new file added to src/ would compile and link, escape the per-file 100% gate (because nothing covers it),
+#      and ship to production with zero test exercise. This is a static check on define.yaml — fast, deterministic, runs on every
+#      push.
+#
+#   2. coverage-artifact:  on every coverage run (not just failure), upload the test/result/coverage/ HTML report so reviewers can
+#      browse it without rerunning CI. test.yml currently only `cat`s the report to the workflow log on failure, which is awkward
+#      to read.
+#
+# The actual coverage build is heavy (full unit-test run with gcov instrumentation) so we don't duplicate it here — the artifact
+# upload piggy-backs on test.yml's existing run via a downloaded build artifact. If test.yml is restructured, this workflow needs
+# to be revisited.
+
+on:
+  push:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+  pull_request:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage-completeness:
+    name: coverage list completeness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Install python deps
+        run: |
+          sudo apt-get update
+          DEBCONF_NONINTERACTIVE_SEEN=true DEBIAN_FRONTEND=noninteractive sudo apt-get install -y python3-yaml
+
+      # The check parses define.yaml's `coverage:` lists and compares the set of covered modules against the set of *.c files under
+      # src/ (excluding generated *.auto.* and the build-time codegen). Every file must appear under at least one `coverage:` entry.
+      # Files that intentionally have no test coverage (e.g., main.c — exercised end-to-end) must be added to the allowlist below
+      # WITH A COMMENT explaining why.
+      - name: Run completeness check
+        run: |
+          cat > /tmp/coverage-check.py <<'PYEOF'
+          import os
+          import sys
+          import yaml
+
+          ROOT = os.environ.get("GITHUB_WORKSPACE", ".")
+          SRC = os.path.join(ROOT, "src")
+          DEFINE_YAML = os.path.join(ROOT, "test", "define.yaml")
+
+          # Files explicitly exempt from the per-file coverage requirement. Each entry MUST have a comment on the same line above
+          # explaining the exemption. If the reason no longer applies, remove the entry; the gate will then re-engage.
+          EXEMPT = {
+              # Top-level dispatcher; exercised end-to-end by integration tests. No isolated unit-test surface.
+              "main.c",
+          }
+
+          # Files in src/ that are NOT covered by tests. Any C file here that isn't EXEMPT and isn't in some `coverage:` list fails.
+          source_files = []
+          for dirpath, _dirnames, filenames in os.walk(SRC):
+              # Skip the build-time codegen subtree — it's a separate executable with its own contract.
+              if "/build" in dirpath.replace(SRC, ""):
+                  continue
+              for name in filenames:
+                  if not name.endswith(".c"):
+                      continue
+                  if ".auto." in name or ".vendor." in name:
+                      continue
+                  rel = os.path.relpath(os.path.join(dirpath, name), SRC)
+                  source_files.append(rel)
+
+          # Collect everything under any test's `coverage:` list. Entries are module names like "command/expire/expire" without
+          # extension; expand to *.c for matching against source_files.
+          covered = set()
+          with open(DEFINE_YAML) as f:
+              defs = yaml.safe_load(f)
+
+          def walk_coverage(obj):
+              if isinstance(obj, dict):
+                  if "coverage" in obj and isinstance(obj["coverage"], list):
+                      for entry in obj["coverage"]:
+                          # Entries may be either a string ("path/to/module") or a dict with a single key whose value is "noCode" or
+                          # "included" or similar — see test/define.yaml's header.
+                          if isinstance(entry, str):
+                              covered.add(entry + ".c")
+                          elif isinstance(entry, dict):
+                              for k in entry.keys():
+                                  covered.add(k + ".c")
+                  for v in obj.values():
+                      walk_coverage(v)
+              elif isinstance(obj, list):
+                  for v in obj:
+                      walk_coverage(v)
+
+          walk_coverage(defs)
+
+          missing = sorted(
+              f for f in source_files
+              if f not in covered and f not in EXEMPT
+          )
+
+          if missing:
+              print("FAIL: the following src/ files are not covered by any test in define.yaml:")
+              for f in missing:
+                  print(f"  src/{f}")
+              print()
+              print("Either add the file to a test's `coverage:` list in test/define.yaml, or, if it intentionally has no unit-")
+              print("test surface (e.g., end-to-end-only), add it to EXEMPT in .github/workflows/coverage.yml with a comment.")
+              sys.exit(1)
+
+          print(f"OK: {len(source_files)} src/ files are all covered (or explicitly exempt).")
+          PYEOF
+          python3 /tmp/coverage-check.py

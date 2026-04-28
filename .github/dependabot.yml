@@ -1,0 +1,34 @@
+# Dependabot keeps the GitHub Actions versions referenced in .github/workflows/*.yml current. We do NOT use Dependabot to update
+# C library dependencies (libpq, OpenSSL, etc.) — those are pulled from the distro's package manager inside the Docker test images,
+# and updating them is the distro's responsibility.
+#
+# Cadence: weekly. The action ecosystem moves fast enough that monthly leaves us multi-version behind on lockstep changes (e.g.,
+# the actions/checkout@v3 → @v4 migration); daily would be noise. Sunday avoids the weekday review burden.
+#
+# Each dependabot PR fires the full CI matrix (test, sanitizers, static-analysis, coverage, reproducibility, actionlint), so we
+# get strong confidence that an action upgrade hasn't silently broken anything.
+
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "07:00"
+      timezone: "Etc/UTC"
+    # Open at most three concurrent action-update PRs; if more than that pile up we likely need a manual sweep, not more bot PRs.
+    open-pull-requests-limit: 3
+    # Group all action upgrades into a single PR per week. This keeps the noise down and tests the upgrades together (which is how
+    # they'll be experienced in practice).
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "ci"

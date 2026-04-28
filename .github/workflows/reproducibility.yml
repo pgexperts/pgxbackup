@@ -1,0 +1,112 @@
+name: reproducibility
+
+# Builds the pgbackrest binary twice from the same source tree, then byte-compares the two outputs. A non-empty diff is a
+# reproducibility regression — something embedded in the binary depends on time, path, build host, or randomness, and the same
+# source no longer produces the same artifact.
+#
+# Why this matters for a backup tool:
+#   - Forensic provability: when investigating a bad backup, "the binary that wrote this is the binary I have a hash of" is a
+#     load-bearing claim. Reproducible builds make that claim verifiable.
+#   - Supply-chain: a downstream packager who builds from source should get the same bits as upstream, so a tampered build is
+#     detectable by hash comparison.
+#   - Bug isolation: when reproducibility breaks, the regression is almost always a bug — accidental __DATE__ leaking into a
+#     translation unit, or a path embedded in debug info — and worth catching early.
+#
+# meson + ninja with -fmacro-prefix-map (already configured in meson.build) give us most of the way there. The remaining sources
+# of nondeterminism are typically: __DATE__/__TIME__ macros, build path leakage, and timestamp-dependent compilers. We use
+# SOURCE_DATE_EPOCH (a Reproducible Builds standard) to pin __DATE__/__TIME__.
+
+on:
+  push:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+  pull_request:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reproducibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reproducibility:
+    name: bit-identical rebuild
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    env:
+      # Pin "build time" to a fixed epoch so any __DATE__/__TIME__ embedded in the binary is identical between the two builds.
+      # The value is arbitrary; what matters is that it's the same in both runs.
+      SOURCE_DATE_EPOCH: '1700000000'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          path: pgbackrest
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          DEBCONF_NONINTERACTIVE_SEEN=true DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
+              build-essential meson pkg-config diffoscope-minimal \
+              libssl-dev zlib1g-dev libxml2-dev libpq-dev libyaml-dev \
+              liblz4-dev libzstd-dev libbz2-dev libssh2-1-dev
+
+      # Build #1 in build-a/, build #2 in build-b/. The two build directories must be identical-length paths so that any path
+      # leakage from -fmacro-prefix-map's behavior on debug info doesn't differ between them. (The meson.build at line 144 already
+      # sets up the prefix-map.)
+      - name: First build
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          meson setup -Dbuildtype=release -Dwerror=true build-a pgbackrest
+          ninja -C build-a src/pgbackrest
+
+      - name: Second build (clean)
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          meson setup -Dbuildtype=release -Dwerror=true build-b pgbackrest
+          ninja -C build-b src/pgbackrest
+
+      - name: Compare binaries
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          a_hash=$(sha256sum build-a/src/pgxbackup | cut -d' ' -f1)
+          b_hash=$(sha256sum build-b/src/pgxbackup | cut -d' ' -f1)
+
+          echo "build-a sha256: ${a_hash}"
+          echo "build-b sha256: ${b_hash}"
+
+          if [ "${a_hash}" != "${b_hash}" ]; then
+              echo
+              echo "FAIL: binaries differ. Common causes:"
+              echo "  - __DATE__ or __TIME__ used somewhere (search src/ for these macros)"
+              echo "  - timestamp embedded by an external library or vendored code"
+              echo "  - build path leaking past -fmacro-prefix-map (check newly-added .c files)"
+              echo "  - linker output ordering nondeterminism (rare on modern lld/ld.bfd)"
+              echo
+              echo "Detail diff via diffoscope:"
+              diffoscope --max-text-report-size 200000 build-a/src/pgxbackup build-b/src/pgxbackup || true
+              exit 1
+          fi
+
+          echo "OK: binaries are bit-identical."
+
+      # If the build is nondeterministic, the diffoscope output is the most useful artifact for debugging.
+      - name: Upload binaries on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: reproducibility-failure-${{ github.run_id }}
+          path: |
+            ${{ github.workspace }}/build-a/src/pgxbackup
+            ${{ github.workspace }}/build-b/src/pgxbackup
+          retention-days: 14
+          if-no-files-found: warn

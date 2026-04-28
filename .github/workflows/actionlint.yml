@@ -1,0 +1,53 @@
+name: actionlint
+
+# Lints workflow YAML for common GitHub Actions mistakes (typos in event names, undefined `needs:` references, deprecated syntax,
+# shell-script issues inside run: blocks). Cheap; runs only when workflow files themselves change. shellcheck is bundled.
+#
+# Why it matters: a syntax bug in a workflow file silently disables that workflow (GitHub treats unparseable YAML as "no jobs").
+# Without actionlint, a typo could disable e.g. the sanitizer gate and CI would still go green via the remaining workflows. This
+# job catches that class of failure before merge.
+
+on:
+  push:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+  pull_request:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actionlint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # The official actionlint binary is a single statically-linked Go binary; pulling it via the project's install script is the
+      # least-friction install. shellcheck is preinstalled on ubuntu-24.04 runners.
+      - name: Install actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -version
+
+      - name: Run actionlint
+        run: |
+          ./actionlint -color
