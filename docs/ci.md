@@ -60,7 +60,18 @@ These are recognized weaknesses in the current CI; they are *not* blockers for c
 
 7. **Performance regression detection.** A microbenchmark suite that runs on every PR and flags >10% regressions. Currently `test.pl` has performance modules but no CI gate on the numbers.
 
-8. **Action pinning to SHAs.** Workflows currently pin to major-version tags (`actions/checkout@v6`). For supply-chain hardening, pin to SHAs and let Dependabot float the SHA forward. Defers a decision rather than makes one — but worth considering.
+8. **Action pinning to SHAs.** Workflows currently pin to major-version tags (`actions/checkout@v6`). For supply-chain hardening, pin to SHAs and let Dependabot float the SHA forward. Defers a decision rather than makes one — but worth considering. *(Done as of commit 564fb55af.)*
+
+9. **clang-analyzer-* checks (path-sensitive).** Temporarily disabled in `.clang-tidy` pending triage of 20 findings surfaced on the first run that compiled cleanly. The findings, by category:
+   - 7 × `core.NullDereference` in `src/command/verify/verify.c` (lines 1804, 1812, 1820, 1825, 1846, 1851, 1858) — possibly real bugs (missing null guards) or analyzer can't see that the variable is non-null on the relevant branch.
+   - 4 × `deadcode.DeadStores` in `src/command/verify/verify.c:404, 426`, `src/db/db.c:656`, `src/storage/sftp/storage.c:1182`. Likely defensive-init redundancy from refactoring; verify each before removing.
+   - 3 × `core.UndefinedBinaryOperatorResult` (uninitialized garbage) in `src/command/archive/push/file.c:200`, `src/command/backup/backup.c:380`, `src/command/restore/timeline.c:230`.
+   - 2 × `core.uninitialized.Assign` in `src/command/restore/timeline.c:123`, `src/common/exec.c:252`.
+   - 3 × `security.insecureAPI.strcpy` in `src/common/stackTrace.c:195`, `src/common/type/string.c:474`, `src/info/manifest/manifest.c:288` — bounds-checked strcpy usages flagged by CWE-119; replace with memcpy or suppress with rationale.
+   - 1 × `core.NonNullParamChecker` in `src/common/type/buffer.c:76`.
+   The `scan-build` job (same analyzer family) currently passes — the discrepancy means clang-tidy invokes the analyzer with broader defaults than scan-build's. Re-enable the `clang-analyzer-*` block in `.clang-tidy` after the 20 findings are resolved.
+
+10. **cppcheck `style` category.** Currently disabled (only `warning,performance,portability` are enabled). The `style` category produced ~250 findings on the first run that compiled, dominated by `constParameterPointer`/`constVariablePointer`/`unknownEvaluationOrder` (false-positive on C99 compound literals). Re-engage `style` after a cleanup pass; meanwhile the `warning` category still catches null-deref, leak, format-string, and uninitialized-variable bugs.
 
 ## How to add a new gate
 

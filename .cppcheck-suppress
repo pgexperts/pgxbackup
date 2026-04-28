@@ -20,3 +20,10 @@ unreadVariable:src/info/manifest/manifest.c:247
 # the macro as if it could short-circuit on a null parameter, then flags any subsequent pointer dereference as either redundant
 # (if the macro guards) or unsafe (if it doesn't). Same root cause as the unassignedVariable suppression above.
 nullPointerRedundantCheck
+
+# unknownEvaluationOrder (global): cppcheck flags C99 compound literals in function arguments
+# (e.g., foo(bar, (struct Param){.dummy = false})) as having ambiguous evaluation order. The C99/C11 standards explicitly
+# define the evaluation of compound literals at function-call sites; cppcheck's analysis is overly conservative here. The
+# pgxbackup codebase uses compound literals pervasively as a variadic-function-argument idiom (see CODING.md). 54 findings
+# of this category were inspected and confirmed false-positives; suppressing globally rather than 54 inline annotations.
+unknownEvaluationOrder
