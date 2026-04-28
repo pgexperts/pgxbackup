@@ -50,8 +50,12 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
+          # libbacktrace-dev is required because meson's `cc.find_library('backtrace', required: false)` in meson.build:168
+          # detects the runtime .so but cannot detect the absence of the header. If installed without the dev headers we get
+          # `'backtrace.h' file not found` at compile time. Pulling the dev package keeps HAVE_LIBBACKTRACE consistent.
           DEBCONF_NONINTERACTIVE_SEEN=true DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
               build-essential clang llvm meson pkg-config \
+              libbacktrace-dev \
               libssl-dev zlib1g-dev libxml2-dev libpq-dev libyaml-dev \
               liblz4-dev libzstd-dev libbz2-dev libssh2-1-dev
 

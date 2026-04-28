@@ -67,13 +67,13 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           meson setup -Dbuildtype=release -Dwerror=true build-a pgbackrest
-          ninja -C build-a src/pgbackrest
+          ninja -C build-a src/pgxbackup
 
       - name: Second build (clean)
         run: |
           cd "${GITHUB_WORKSPACE}"
           meson setup -Dbuildtype=release -Dwerror=true build-b pgbackrest
-          ninja -C build-b src/pgbackrest
+          ninja -C build-b src/pgxbackup
 
       - name: Compare binaries
         run: |
