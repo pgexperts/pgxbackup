@@ -21,6 +21,22 @@ unreadVariable:src/info/manifest/manifest.c:247
 # (if the macro guards) or unsafe (if it doesn't). Same root cause as the unassignedVariable suppression above.
 nullPointerRedundantCheck
 
+# Vendored crypto code (xxhash, md5) is third-party material we do not modify. Suppress all checks for those files.
+# cppcheck's -i exclusion only takes effect for the entry-point recursion, not for files reached transitively, which is why
+# we need a --suppress here in addition to the -i in the workflow.
+*:src/common/crypto/xxhash.vendor.c.inc
+*:src/common/crypto/md5.vendor.c.inc
+
+# Auto-generated config and postgres-interface tables (produced by build-code from yaml/xml at build time). Not part of the
+# hand-maintained codebase; cppcheck has no useful signal to give about machine-generated tables.
+*:src/config/parse.auto.c.inc
+*:src/config/config.auto.h
+*:src/command/help/help.auto.c.inc
+*:src/common/error/error.auto.c.inc
+*:src/common/error/error.auto.h
+*:src/postgres/version.auto.h
+*:src/postgres/interface.auto.c.inc
+
 # unknownEvaluationOrder (global): cppcheck flags C99 compound literals in function arguments
 # (e.g., foo(bar, (struct Param){.dummy = false})) as having ambiguous evaluation order. The C99/C11 standards explicitly
 # define the evaluation of compound literals at function-call sites; cppcheck's analysis is overly conservative here. The

@@ -79,6 +79,11 @@ These are recognized weaknesses in the current CI; they are *not* blockers for c
     - `src/command/info/info.c:1008` — likely similar
     The right fix per the rule is to annotate each call site with `(void)func(...)` to make the intent explicit. Re-enable `cert-err33-c` after that cleanup pass.
 
+12. **clang-tidy `bugprone-branch-clone` and `misc-misplaced-const`.** Both temporarily disabled in `.clang-tidy`.
+    - `bugprone-branch-clone`: 2 findings in `src/common/io/tls/client.c:115` and `src/common/type/buffer.c:293` where if/else branches do similar work. Likely intentional (explicit clauses for clarity); per-site review needed.
+    - `misc-misplaced-const`: 2 findings in `src/common/type/xml.c:90,132` about `const xmlNodePtr` declaring a constant pointer rather than pointer-to-const (because `xmlNodePtr` is a typedef for `struct _xmlNode *`). Likely intentional pattern matching libxml2 API conventions.
+    Re-enable after a triage pass on the 4 findings.
+
 ## How to add a new gate
 
 1. Identify the production failure mode the gate prevents. State it in one sentence.
