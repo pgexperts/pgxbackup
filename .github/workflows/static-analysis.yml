@@ -114,6 +114,8 @@ jobs:
               -j"$(nproc)" \
               -I src \
               -i src/build/ \
+              -i src/common/crypto/xxhash.vendor.c.inc \
+              -i src/common/crypto/md5.vendor.c.inc \
               src/
 
   scan-build:

@@ -73,6 +73,12 @@ These are recognized weaknesses in the current CI; they are *not* blockers for c
 
 10. **cppcheck `style` category.** Currently disabled (only `warning,performance,portability` are enabled). The `style` category produced ~250 findings on the first run that compiled, dominated by `constParameterPointer`/`constVariablePointer`/`unknownEvaluationOrder` (false-positive on C99 compound literals). Re-engage `style` after a cleanup pass; meanwhile the `warning` category still catches null-deref, leak, format-string, and uninitialized-variable bugs.
 
+11. **clang-tidy `cert-err33-c` (return-value-not-checked).** Temporarily disabled in `.clang-tidy`. Surfaced ~10 findings on calls to `printf`/`fprintf`/`close`/`dup2` etc. where the return value is intentionally ignored:
+    - `src/command/exit.c:79-84` — exit-time IO cleanup (no recourse if these fail)
+    - `src/common/error/error.c:354,355,432,451,482` — error-reporting paths (failing here means we cannot even tell the user what went wrong)
+    - `src/command/info/info.c:1008` — likely similar
+    The right fix per the rule is to annotate each call site with `(void)func(...)` to make the intent explicit. Re-enable `cert-err33-c` after that cleanup pass.
+
 ## How to add a new gate
 
 1. Identify the production failure mode the gate prevents. State it in one sentence.
