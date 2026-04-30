@@ -76,6 +76,9 @@ cvtZSubNToInt64(const char *const value, const size_t offset, const size_t size)
 FN_INLINE_ALWAYS uint32_t
 cvtInt32ToZigZag(const int32_t value)
 {
+    // The right shift by 31 of a signed value is implementation-defined per C99, but every supported compiler does an
+    // arithmetic shift (sign-bit propagation) which is exactly what ZigZag requires: 0 for non-negative, all-ones for negative.
+    // cppcheck-suppress shiftTooManyBitsSigned
     return ((uint32_t)value << 1) ^ (uint32_t)(value >> 31);
 }
 
@@ -88,6 +91,8 @@ cvtInt32FromZigZag(const uint32_t value)
 FN_INLINE_ALWAYS uint64_t
 cvtInt64ToZigZag(const int64_t value)
 {
+    // See cvtInt32ToZigZag for the rationale. Same pattern at 64-bit width.
+    // cppcheck-suppress shiftTooManyBitsSigned
     return ((uint64_t)value << 1) ^ (uint64_t)(value >> 63);
 }
 
