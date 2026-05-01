@@ -25,10 +25,14 @@
 # Override meson's configure step to pass project-specific options.
 # pgxbackup defaults configdir to /etc/pgxbackup; we don't override (it's
 # already the right value via meson_options.txt for the renamed fork).
+#
+# Note: we deliberately do NOT pass --werror. The strict warning gate lives
+# in CI's `unity` job (test.yml). Package builds need to compile cleanly on
+# the target distro's compiler; a future GCC/clang warning we have not yet
+# adapted to should NOT break a downstream user's package install.
 override_dh_auto_configure:
 	dh_auto_configure -- \
-	    --buildtype=release \
-	    --werror=false
+	    --buildtype=release
 
 # Skip the auto-test step. The project's test suite is driven by test/test.pl,
 # which is not a meson-test-target and is not appropriate to run during
