@@ -1,0 +1,48 @@
+Source: pgxbackup
+Section: database
+Priority: optional
+Maintainer: pgxbackup maintainers <pgxbackup@pgexperts.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ meson (>= 0.47),
+ ninja-build,
+ pkg-config,
+ libssl-dev,
+ zlib1g-dev,
+ libxml2-dev,
+ libpq-dev,
+ libyaml-dev,
+ liblz4-dev,
+ libzstd-dev,
+ libbz2-dev,
+ libssh2-1-dev,
+Standards-Version: 4.6.2
+Homepage: https://github.com/pgexperts/pgxbackup
+Vcs-Browser: https://github.com/pgexperts/pgxbackup
+Vcs-Git: https://github.com/pgexperts/pgxbackup.git
+Rules-Requires-Root: no
+
+Package: pgxbackup
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ adduser,
+Description: reliable PostgreSQL backup and restore (continuity fork of pgBackRest)
+ pgxbackup is a backup and restore solution for PostgreSQL that scales to the
+ largest databases and workloads. It is a continuity fork of pgBackRest,
+ maintained by pgExperts after the upstream project was declared end-of-life
+ in early 2026.
+ .
+ Features include parallel backup and restore, full/differential/incremental
+ backups (file or block level), per-file checksums, page checksums validated
+ during backup, multiple compression types, encryption, partial-failed backup
+ resume, backup from standby, tablespace and link support, S3/Azure/GCS/SFTP
+ repositories, archive expiration, and local or remote operation via SSH or
+ TLS.
+ .
+ The on-disk repository format is fully compatible with upstream pgBackRest
+ (versions through 2.58); existing backups can be restored by either tool, and
+ the legacy /etc/pgbackrest.conf is read by pgxbackup out of the box. The
+ pgxbackup package coexists with the pgbackrest package -- both can be
+ installed during a migration.

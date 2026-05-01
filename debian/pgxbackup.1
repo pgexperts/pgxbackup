@@ -1,0 +1,64 @@
+.TH PGXBACKUP 1 "April 2026" "pgxbackup 2.59.0" "User Commands"
+.SH NAME
+pgxbackup \- reliable PostgreSQL backup and restore
+.SH SYNOPSIS
+.B pgxbackup
+[\fIOPTIONS\fR] \fICOMMAND\fR
+.SH DESCRIPTION
+.B pgxbackup
+is a backup and restore solution for PostgreSQL that scales to the largest
+databases and workloads. It is a continuity fork of pgBackRest, on-disk
+format compatible with upstream pgBackRest 2.58.
+.PP
+This is a stub manpage. Comprehensive command and option documentation is
+served by the binary itself, via the
+.B help
+command.
+.SH HELP
+For general help and the list of commands:
+.PP
+.RS 4
+.B pgxbackup help
+.RE
+.PP
+For command-specific help:
+.PP
+.RS 4
+.B pgxbackup help \fICOMMAND\fR
+.RE
+.PP
+For option-specific help in the context of a command:
+.PP
+.RS 4
+.B pgxbackup help \fICOMMAND\fR \fIOPTION\fR
+.RE
+.SH FILES
+.TP
+.I /etc/pgxbackup/pgxbackup.conf
+Default configuration file location.
+.TP
+.I /etc/pgxbackup/conf.d/
+Drop-in configuration directory; files matching
+.B *.conf
+are merged into the main configuration.
+.TP
+.I /etc/pgbackrest.conf
+Legacy configuration file from upstream pgBackRest. Read for backward
+compatibility if the per-distro default is absent.
+.TP
+.I /var/lib/pgxbackup/
+Default repository path (overridable per stanza).
+.TP
+.I /var/log/pgxbackup/
+Default log directory.
+.TP
+.I /var/spool/pgxbackup/
+Default async-archive spool directory.
+.SH AUTHORS
+pgxbackup is maintained by pgExperts, Inc. as a continuity fork of
+pgBackRest. The original pgBackRest was authored by David Steele and
+contributors.
+.SH SEE ALSO
+.BR pgbackrest (1)
+if the upstream package is also installed; the two are on-disk format
+compatible.

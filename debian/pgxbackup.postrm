@@ -1,0 +1,29 @@
+#!/bin/sh
+# Post-remove script for pgxbackup.
+#
+# Policy: on `remove` we leave the runtime directories alone -- they may
+# contain backup repositories worth tens or hundreds of GB. On `purge` we
+# also leave them, because removing a backup tool should never delete the
+# user's backups. The operator must remove /var/lib/pgxbackup explicitly.
+#
+# The dirs.conffile-removal logic from debhelper is fine for us because we
+# do not ship config files in /etc/pgxbackup/ (only the empty directory).
+
+set -e
+
+case "$1" in
+    remove|purge|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # No automatic removal of repo / log / spool directories. See policy
+        # comment above. If the operator wants a full purge, they remove the
+        # directories manually after `apt purge pgxbackup`.
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

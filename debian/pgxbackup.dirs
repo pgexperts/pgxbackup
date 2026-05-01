@@ -1,0 +1,5 @@
+etc/pgxbackup
+etc/pgxbackup/conf.d
+var/lib/pgxbackup
+var/log/pgxbackup
+var/spool/pgxbackup

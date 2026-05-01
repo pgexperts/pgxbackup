@@ -1,0 +1,38 @@
+#!/usr/bin/make -f
+# debian/rules for pgxbackup -- delegates to debhelper's meson buildsystem.
+#
+# debhelper compat 13 + --buildsystem=meson handles the standard configure/
+# build/install dance: meson setup, ninja, and meson install --destdir, all
+# pointing at the right prefix and DESTDIR.
+#
+# Notes specific to this project:
+#   - The build-code executable (src/build/main.c) is a build-time tool that
+#     generates *.auto.c.inc / *.auto.h from yaml/xml inputs. meson handles
+#     this dependency automatically: ninja resolves it before linking the
+#     pgxbackup target.
+#   - We pass --werror=false because, while the project's CI does enable
+#     -Werror in dedicated jobs (unity / sanitizers), we don't want a future
+#     compiler warning -- on a distro we don't control -- to break a package
+#     build. The strict warning gate lives in CI; the package gate is
+#     "compiles cleanly on the target distro's compiler."
+
+# Quiet down dh's default verbose output; uncomment for debugging.
+# export DH_VERBOSE = 1
+
+%:
+	dh $@ --buildsystem=meson
+
+# Override meson's configure step to pass project-specific options.
+# pgxbackup defaults configdir to /etc/pgxbackup; we don't override (it's
+# already the right value via meson_options.txt for the renamed fork).
+override_dh_auto_configure:
+	dh_auto_configure -- \
+	    --buildtype=release \
+	    --werror=false
+
+# Skip the auto-test step. The project's test suite is driven by test/test.pl,
+# which is not a meson-test-target and is not appropriate to run during
+# package build (it requires Docker for most modules). Package-build smoke
+# happens in the CI workflow via dpkg-deb inspection and binary invocation.
+override_dh_auto_test:
+	@echo "Skipping dh_auto_test -- the project's tests run via test/test.pl, not meson test"

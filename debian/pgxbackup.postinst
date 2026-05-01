@@ -1,0 +1,48 @@
+#!/bin/sh
+# Post-install script for pgxbackup.
+#
+# In the typical deployment pgxbackup is operated as the postgres OS user
+# (the user that runs the PostgreSQL server). The postgres-common package
+# in Debian creates that user; we depend on `adduser` for the helper but do
+# not depend on postgres-common because pgxbackup also has standalone uses
+# (e.g., a backup-only repo host with no local PostgreSQL).
+#
+# Strategy: chown the runtime directories to postgres:postgres if and only
+# if the postgres user exists. Otherwise leave them as root:root with mode
+# 750 -- the operator can rechown after creating the appropriate user.
+
+set -e
+
+case "$1" in
+    configure)
+        # Set ownership on the runtime directories if the postgres user exists.
+        # This is the common case (PostgreSQL is installed alongside pgxbackup).
+        # If postgres does not exist, the directories remain root:root mode 750
+        # and the operator must adjust manually.
+        if getent passwd postgres >/dev/null 2>&1; then
+            for dir in /var/lib/pgxbackup /var/log/pgxbackup /var/spool/pgxbackup; do
+                if [ -d "$dir" ]; then
+                    chown postgres:postgres "$dir"
+                    chmod 750 "$dir"
+                fi
+            done
+        fi
+
+        # /etc/pgxbackup is operator-owned config space; left as root:root mode
+        # 750 so only root and group-readable users see config (which may
+        # contain repo cipher passphrases).
+        chmod 750 /etc/pgxbackup /etc/pgxbackup/conf.d
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

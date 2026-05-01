@@ -1,0 +1,10 @@
+pgxbackup (2.59.0-1) bookworm; urgency=medium
+
+  * Initial release of pgxbackup, the continuity fork of pgBackRest 2.58.
+    Surface rename only: binary, default paths, and project name change to
+    pgxbackup. On-disk format identifiers are preserved so existing backup
+    repositories produced by upstream pgBackRest are fully readable, and
+    /etc/pgbackrest.conf is probed for backward compatibility.
+  * Coexists with the pgbackrest package; no Conflicts/Replaces.
+
+ -- pgxbackup maintainers <pgxbackup@pgexperts.com>  Thu, 30 Apr 2026 12:00:00 +0000

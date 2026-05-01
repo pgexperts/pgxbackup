@@ -1,0 +1,158 @@
+name: packages
+
+# Phase 1: build a single Debian 12 amd64 .deb to prove out the packaging shape.
+# Phase 2 will expand this matrix to the full distro list and add an install-smoke
+# step running in a fresh container of the same distro. Phase 3 adds signing and
+# publishing to a real apt/yum repo. See docs/packaging-design.md for the full
+# trajectory.
+
+on:
+  push:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+    tags:
+      - 'v*'
+    paths:
+      - 'debian/**'
+      - 'meson.build'
+      - 'meson_options.txt'
+      - 'src/**'
+      - '.github/workflows/packages.yml'
+  pull_request:
+    branches:
+      - main
+      - '**-ci'
+      - '**-cig'
+    paths:
+      - 'debian/**'
+      - 'meson.build'
+      - 'meson_options.txt'
+      - 'src/**'
+      - '.github/workflows/packages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-deb:
+    name: ${{ matrix.target.distro }} ${{ matrix.target.arch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          # Phase 1 ships only this entry. Adding a row here is the only change
+          # needed for Phase 2 to expand the matrix.
+          - distro: debian-12
+            arch: amd64
+            image: 'debian:12'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # We need the full git history so `git archive` can produce a clean
+          # source tarball matching the working tree HEAD. shallow=1 (the
+          # default) is sufficient for HEAD-only archive but full history
+          # makes future tag-driven release work simpler with no real cost.
+          fetch-depth: 0
+
+      # The Debian source-format `3.0 (quilt)` requires an .orig.tar.gz that
+      # matches the upstream version. We generate it via `git archive` from
+      # HEAD with the conventional `<package>-<version>` prefix. Naming must
+      # be exactly `pgxbackup_2.59.0.orig.tar.gz` (note the underscore between
+      # name and version, and the dot before orig) for dpkg-buildpackage to
+      # find it in the parent directory.
+      - name: Create source tarball
+        run: |
+          VERSION=$(awk '/version:/ { gsub(/[^0-9.]/, "", $2); print $2; exit }' meson.build)
+          echo "Source version: ${VERSION}"
+          mkdir -p /tmp/pkg
+          git archive --format=tar.gz \
+              --prefix="pgxbackup-${VERSION}/" \
+              -o "/tmp/pkg/pgxbackup_${VERSION}.orig.tar.gz" \
+              HEAD
+          # Extract into /tmp/pkg/pgxbackup-${VERSION}/ so dpkg-buildpackage
+          # has a "source tree" to work in, parallel to the .orig.tar.gz.
+          tar xzf "/tmp/pkg/pgxbackup_${VERSION}.orig.tar.gz" -C /tmp/pkg
+          ls -la /tmp/pkg/
+
+      # The build runs inside a clean Docker container of the target distro.
+      # Reusing a container (vs. installing on the runner) gives us the same
+      # libc/compiler/dependency versions a real user of that distro would
+      # see -- the package becomes binding ABI of THAT distro, not the
+      # ubuntu-24.04 runner.
+      - name: Build .deb in target distro container
+        env:
+          BUILD_IMAGE: ${{ matrix.target.image }}
+        run: |
+          docker run --rm \
+            -v /tmp/pkg:/work \
+            -w /work \
+            -e DEBIAN_FRONTEND=noninteractive \
+            "${BUILD_IMAGE}" \
+            bash -c '
+              set -euxo pipefail
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                  build-essential ca-certificates \
+                  meson ninja-build pkg-config \
+                  debhelper devscripts dh-make fakeroot \
+                  libssl-dev zlib1g-dev libxml2-dev libpq-dev libyaml-dev \
+                  liblz4-dev libzstd-dev libbz2-dev libssh2-1-dev
+              cd pgxbackup-*/
+              # -b: binary-only build (skip source-package generation; we are
+              #     not uploading a .dsc anywhere).
+              # -us -uc: no GPG signing at this phase. Phase 3 will add signing
+              #     via a separate step using the project release key.
+              dpkg-buildpackage -b -us -uc
+              ls -la ..
+            '
+
+      - name: Inspect produced .deb
+        env:
+          BUILD_IMAGE: ${{ matrix.target.image }}
+        run: |
+          for deb in /tmp/pkg/*.deb; do
+              echo
+              echo "=== $deb ==="
+              docker run --rm -v /tmp/pkg:/work -w /work \
+                  "${BUILD_IMAGE}" \
+                  bash -c "dpkg-deb --info \"$(basename "$deb")\" && echo && dpkg-deb --contents \"$(basename "$deb")\""
+          done
+
+      # Lintian is the Debian package linter. We run it in informational mode
+      # for now (no --fail-on); Phase 2 will tighten this to fail on errors
+      # once we know what the baseline looks like on this codebase.
+      - name: Lintian (informational)
+        env:
+          BUILD_IMAGE: ${{ matrix.target.image }}
+        run: |
+          docker run --rm -v /tmp/pkg:/work -w /work \
+            -e DEBIAN_FRONTEND=noninteractive \
+            "${BUILD_IMAGE}" \
+            bash -c '
+              apt-get update >/dev/null
+              apt-get install -y --no-install-recommends lintian >/dev/null
+              for deb in *.deb; do
+                  echo "=== lintian on $deb ==="
+                  lintian --no-tag-display-limit --info "$deb" || true
+              done
+            '
+
+      - name: Upload .deb as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: pgxbackup-${{ matrix.target.distro }}-${{ matrix.target.arch }}
+          path: /tmp/pkg/*.deb
+          retention-days: 30
+          if-no-files-found: error
